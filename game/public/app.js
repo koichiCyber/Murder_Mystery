@@ -81,8 +81,8 @@ function onState() {
   if (v.phase === 'play' && S.prevPhase !== 'play') {
     S.nb = {}; localStorage.removeItem(nbKey()); S.sel = { s: null, w: null, l: null }; S.shownRole = false; S.prevSeen = 0;
   }
-  if (v.phase === 'play' && !S.shownRole) { S.shownRole = true; if (v.myRole) showRole(); }
-  if (v.phase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; revealCard(s.card, s.byName); }
+  if (v.phase === 'play' && !S.shownRole) { S.shownRole = true; const fk = 'mm_intro_' + v.code + '_' + (v.hand || []).join(''); if (!sessionStorage.getItem(fk)) { sessionStorage.setItem(fk, 1); showHandIntro(); } }
+  if (v.phase === 'play' && S.prevPhase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; revealCard(s.card, s.byName); }
   if (v.phase === 'play') S.prevSeen = v.seen.length;
   S.prevPhase = v.phase;
   render();
@@ -99,6 +99,10 @@ function nbLoad() { try { S.nb = JSON.parse(localStorage.getItem(nbKey()) || '{}
 
 // ---------- modals ----------
 function closeModal() { $('#modal').innerHTML = ''; }
+function showHandIntro() {
+  const v = S.v; if (!v) return;
+  $('#modal').innerHTML = `<div class="back intro"><div class="box wide"><h2>${T('Manh mối trong tay bạn', 'Clues in your hand')}</h2><div class="sub"><b>${T('Không phải đáp án', 'Not the answer')}</b>, ${T('sổ tay đã gạch.', 'already crossed out in your notebook.')}</div><div class="hgrid">${v.hand.map((id, i) => `<div class="hc" style="animation-delay:${i * 0.12}s">${cardHTML(id, 0.62)}</div>`).join('')}</div><div class="tipbox"><b>${T('Mẹo:', 'Tip:')}</b> ${T('hỏi về những lá chưa bị gạch.', 'ask about cards that are not crossed out.')}</div><button class="btn big" onclick="closeModal();${v.myRole ? 'showRole()' : ''}">${v.myRole ? T('Xem vai trò bí mật', 'See my secret role') : T('Bắt đầu', 'Start')}</button></div></div>`;
+}
 function showRole() {
   const v = S.v; if (!v || !v.myRole) return;
   const sec = v.secrets.map(id => cardHTML(id, 0.55)).join('');
@@ -191,13 +195,42 @@ function nbCycle(id) {
   S.nb[id] = o[(o.indexOf(cur) + 1) % o.length];
   localStorage.setItem(nbKey(), JSON.stringify(S.nb)); render();
 }
-function pick(k, id) { S.sel[k] = S.sel[k] === id ? null : id; render(); }
+function pick(k, id) {
+  S.sel[k] = S.sel[k] === id ? null : id;
+  if (S.sel[k] && S.wiz) { const nx = ['s', 'l', 'w'].find(x => !S.sel[x]); S.wiz.step = nx || k; }
+  render();
+}
+function wizOpen(mode) { S.wiz = { mode, step: 's' }; S.sel = { s: null, w: null, l: null }; render(); }
+function wizClose() { S.wiz = null; S.sel = { s: null, w: null, l: null }; render(); }
+function wizStep(k) { if (S.wiz) { S.wiz.step = k; render(); } }
+function wizGo() { const m = S.wiz.mode; if (m === 'suggest') { doSuggest(); } else doAccuse(); }
+function outSet() { // cards ruled out by notebook / hand
+  const v = S.v, nb = computeNB(), out = new Set(v.hand);
+  Object.keys(nb.holder).forEach(c => out.add(c));
+  Object.keys(S.nb).forEach(c => { if (S.nb[c] === 'x') out.add(c); });
+  return out;
+}
+function wizHTML(v) {
+  const w = S.wiz, out = outSet(), mine = new Set(v.hand);
+  const ord = ['s', 'l', 'w'], Q = { s: ['Ai?', 'Who?'], l: ['Ở đâu?', 'Where?'], w: ['Bằng gì?', 'With what?'] };
+  const kn = { s: [T('Nghi phạm', 'Suspect'), 'NGHI PHẠM', 'SUSPECT'], l: [T('Địa điểm', 'Location')], w: [T('Hung khí', 'Weapon')] };
+  const slots = ord.map(k => { const id = S.sel[k], c = id ? BY[id] : null, cur = w.step === k;
+    return `<div class="slot ${cur ? 'cur' : ''} ${k}" onclick="wizStep('${k}')"><div class="sh">${T(CATN[k][0].toUpperCase(), CATN[k][1].toUpperCase())}</div><div class="sb">${c ? `<div class="sart">${c.svg}</div>` : '<span class="q">?</span>'}</div><div class="sn">${c ? esc(LN(c)) : T(Q[k][0], Q[k][1])}</div>${c ? '<i class="ok">✓</i>' : ''}</div>`; }).join('');
+  const k = w.step, left = CARDS[k].filter(c => !out.has(c.id)).length;
+  const lab = { s: [T('Chọn nghi phạm', 'Choose the suspect'), T('người', 'suspects')], l: [T('Chọn địa điểm', 'Choose the location'), T('nơi', 'locations')], w: [T('Chọn hung khí', 'Choose the weapon'), T('món', 'weapons')] }[k];
+  const grid = CARDS[k].map(c => `<div class="wc ${S.sel[k] === c.id ? 'sel' : ''} ${out.has(c.id) ? 'out' : ''}" onclick="pick('${k}','${c.id}')">${cardHTML(c.id, 0.62)}${mine.has(c.id) ? `<b class="yours">${T('CỦA BẠN', 'YOURS')}</b>` : ''}${S.sel[k] === c.id ? '<i class="tick">✓</i>' : ''}</div>`).join('');
+  const seize = v.teamMode && v.myRole === 'accomplice', acc = w.mode === 'accuse';
+  const go = acc ? (seize ? T('Chiếm đáp án', 'Seize the answer') : T('Buộc tội', 'Accuse')) : T('Đưa ra giả thuyết', 'Suggest');
+  return `<div class="wiz"><div class="wt">${acc ? (seize ? T('Chiếm đáp án', 'Seize the answer') : T('Buộc tội', 'Accuse')) : T('Giả thuyết', 'Suggestion')}</div><div class="slots">${slots}</div>
+  <div class="wp"><b>${lab[0]}</b>, ${T(`còn ${left} ${lab[1]} chưa bị loại`, `${left} not yet ruled out`)}</div><div class="wgrid">${grid}</div>
+  <div class="wbar"><button class="btn sec" onclick="wizClose()">${T('Quay lại', 'Back')}</button><button class="btn ${acc ? 'red' : ''}" ${selOK() ? '' : 'disabled'} onclick="wizGo()">${go}</button></div></div>`;
+}
 function selOK() { return S.sel.s && S.sel.w && S.sel.l; }
-function doSuggest() { if (!selOK()) return toast('Chọn đủ 3 lá.', 'Pick all 3 cards.'); api('suggest', S.sel); }
+function doSuggest() { if (!selOK()) return toast('Chọn đủ 3 lá.', 'Pick all 3 cards.'); api('suggest', S.sel).then(j => { if (j.error) return; S.wiz = null; S.sel = { s: null, w: null, l: null }; render(); }); }
 function doAccuse() {
   if (!selOK()) return toast('Chọn đủ 3 lá.', 'Pick all 3 cards.');
   const n = `${LN(BY[S.sel.s])} · ${LN(BY[S.sel.w])} · ${LN(BY[S.sel.l])}`;
-  if (confirm(`${S.v.teamMode && S.v.myRole === 'accomplice' ? TL('Chiếm đáp án', 'Seize the answer') : TL('Buộc tội', 'Accuse')}: ${n}\n${TL('Sai sẽ bị loại. Chắc chắn chứ?', 'Wrong = eliminated. Sure?')}`)) api('accuse', S.sel);
+  if (confirm(`${S.v.teamMode && S.v.myRole === 'accomplice' ? TL('Chiếm đáp án', 'Seize the answer') : TL('Buộc tội', 'Accuse')}: ${n}\n${TL('Sai sẽ bị loại. Chắc chắn chứ?', 'Wrong = eliminated. Sure?')}`)) api('accuse', S.sel).then(j => { if (j.error) return; S.wiz = null; render(); });
 }
 function doEnd() { api('end'); }
 function doPower() { const v = S.v; if (v.myRole === 'innocent') return api('power'); if (!S.pw.target) return toast('Chọn một người.', 'Pick a player.'); api('power', S.pw); }
@@ -316,20 +349,22 @@ function playView() {
       main += `<div class="panel" style="border-color:var(--gold)"><h3>${T(`${esc(sn)} đang hỏi bạn!`, `${esc(sn)} is asking you!`)}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')}</div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div>${pd.canLie ? `<div style="margin-top:10px"><button class="btn sec" onclick="lie()">${T('Giấu lá (Đồng phạm, 1 lần): nói không có', 'Withhold (Accomplice, once): say none')}</button></div>` : ''}</div>`;
     }
   }
+  let actionBar = '';
   if (myTurn && !pd) {
-    const seize = v.teamMode && v.myRole === 'accomplice';
-    main += `<div class="panel"><h3>${T('Hành động của bạn', 'Your action')}</h3>${pickers()}<div class="row">
-    <button class="btn" onclick="doSuggest()" ${v.turn.suggests >= v.turn.max ? 'disabled' : ''}>${T('Đưa ra giả thuyết', 'Suggest')} (${v.turn.max - v.turn.suggests})</button>
-    <button class="btn red" onclick="doAccuse()">${seize ? T('Chiếm đáp án', 'Seize the answer') : T('Buộc tội', 'Accuse')}</button>
-    <button class="btn sec" onclick="doEnd()">${T('Kết thúc lượt', 'End turn')}</button></div>
-    <div style="margin-top:10px">${powerHTML(v)}</div></div>`;
-  }
+    const seize = v.teamMode && v.myRole === 'accomplice', left = v.turn.max - v.turn.suggests;
+    if (S.wiz) main = wizHTML(v);
+    else {
+      main += `<div class="bigturn"><div class="bt-av">${avatar(v.players.findIndex(p => p.id === v.me), 96)}</div><div class="bt-t">${T('Lượt của bạn', 'Your turn')}</div></div>`;
+      main += `<div class="pwr">${powerHTML(v)}</div>`;
+      actionBar = `<div class="abar"><button class="btn sec" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button><button class="btn" onclick="wizOpen('suggest')" ${left <= 0 ? 'disabled' : ''}>${T('Đặt giả thuyết', 'Suggest')}${left > 1 ? ` (${left})` : ''}</button><button class="btn red" onclick="wizOpen('accuse')">${seize ? T('Chiếm đáp án', 'Seize') : T('Buộc tội', 'Accuse')}</button><button class="btn sec" onclick="doEnd()">${T('Kết thúc lượt', 'End turn')}</button></div>`;
+    }
+  } else if (S.wiz) S.wiz = null;
   const tray = `<div class="tray"><div class="tab">${T('MẢNH BÀI CỦA BẠN', 'YOUR CARDS')} (${v.hand.length})</div>${v.myRole ? `<button class="pill rolebtn" onclick="showRole()">${T('Vai trò của tôi', 'My role')}</button>` : ''}
   <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, 0.42)).join('')}</div>
   ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, 0.42)).join('')}</div></div>` : ''}</div></div>`;
   const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><button class="pill" onclick="toggleNB()">✕</button></div>${notebookHTML()}</div></aside>` : '';
   const info = `<span class="pill rnd">${T('Vòng', 'Round')} ${v.round}/${v.maxRounds}</span><span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
-  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}</div></div>`;
+  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;
 }
 function overView(v) {
   const o = v.over, host = v.hostId === v.me, sol = o.solution;
