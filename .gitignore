@@ -1,0 +1,4 @@
+node_modules/
+cards/out/
+*.zip
+.DS_Store
