@@ -82,10 +82,18 @@ function onState() {
     S.nb = {}; localStorage.removeItem(nbKey()); S.sel = { s: null, w: null, l: null }; S.shownRole = false; S.prevSeen = 0;
   }
   if (v.phase === 'play' && !S.shownRole) { S.shownRole = true; if (v.myRole) showRole(); }
-  if (v.phase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; toast(`${s.byName} cho bạn xem: ${BY[s.card].vi}`, `${s.byName} showed you: ${BY[s.card].en}`); }
+  if (v.phase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; revealCard(s.card, s.byName); }
   if (v.phase === 'play') S.prevSeen = v.seen.length;
   S.prevPhase = v.phase;
   render();
+}
+function revealCard(id, by) {
+  let el = document.getElementById('reveal'); if (el) el.remove();
+  el = document.createElement('div'); el.id = 'reveal';
+  el.innerHTML = `<div class="rv-box"><div class="rv-t">${T(`${esc(by)} cho bạn xem`, `${esc(by)} shows you`)}</div><div class="rv-flip"><div class="rv-in"><div class="rv-back"><span>?</span></div><div class="rv-front">${cardHTML(id, 1)}</div></div></div><div class="rv-n">${cname(id)}</div><div class="rv-h">${T('Chạm để đóng', 'Tap to close')}</div></div>`;
+  el.onclick = () => { el.classList.add('out'); setTimeout(() => el.remove(), 350); };
+  document.body.appendChild(el);
+  setTimeout(() => { if (el.isConnected) el.onclick(); }, 5000);
 }
 function nbLoad() { try { S.nb = JSON.parse(localStorage.getItem(nbKey()) || '{}'); } catch (e) { S.nb = {}; } }
 

@@ -82,7 +82,7 @@ function broadcast(room) {
 
 
 // ---------- bots (solo play) ----------
-const BOT_DELAY = envNum('BOT_DELAY', 900);
+const BOT_DELAY = envNum('BOT_DELAY', 2500);
 const cardIds = k => CARDS[k].map(c => c.id);
 class Brain {
   constructor() { this.ruled = new Set(); this.known = {}; this.noteN = 0; this.aw = null; this.shown = {}; }

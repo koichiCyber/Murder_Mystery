@@ -219,3 +219,19 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .card .hd{background-image:linear-gradient(90deg,#ffffff22,transparent 40%,#00000022)}
 .cards3 .card::before{content:'';position:absolute;top:0;left:0;width:26px;height:26px;border-top:3px solid #e3c26a;border-left:3px solid #e3c26a;border-top-left-radius:9px;pointer-events:none;z-index:2;display:none}
 .pp .n{text-shadow:0 1px 3px #000}
+
+#reveal{position:fixed;inset:0;z-index:999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;animation:rvfade .35s ease;cursor:pointer}
+#reveal.out{opacity:0;transition:opacity .35s}
+.rv-box{text-align:center;color:#f3e3b5}
+.rv-t{font-size:20px;margin-bottom:14px;letter-spacing:.5px}
+.rv-flip{width:232px;height:325px;margin:0 auto;perspective:1100px;animation:rvpop .7s cubic-bezier(.2,1.3,.4,1)}
+.rv-in{position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:rvflip 1.1s .6s cubic-bezier(.4,.1,.2,1) forwards}
+.rv-back,.rv-front{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:14px}
+.rv-back{background:repeating-linear-gradient(45deg,#5b1d1d 0 8px,#6e2626 8px 16px);border:4px solid #d9b45a;display:flex;align-items:center;justify-content:center;font-size:90px;color:#d9b45a;box-shadow:0 10px 40px #000}
+.rv-front{transform:rotateY(180deg);box-shadow:0 0 50px #ffd76a99}
+.rv-n{margin-top:14px;font-size:18px;opacity:0;animation:rvfade .5s 1.5s forwards}
+.rv-h{margin-top:6px;font-size:12px;opacity:.6}
+@keyframes rvflip{to{transform:rotateY(180deg)}}
+@keyframes rvpop{from{transform:translateY(80px) scale(.5);opacity:0}to{transform:none;opacity:1}}
+@keyframes rvfade{from{opacity:0}to{opacity:1}}
+

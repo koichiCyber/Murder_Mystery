@@ -87,4 +87,4 @@ UI: green-table layout with a notebook that fills itself in (cards in your hand,
 LANGUAGE: use the VI / EN buttons at the top; the game shows one language at a time (default Vietnamese).
 
 
-BOTS: in the lobby press 'Add bot / Thêm máy' to play solo. Speed: BOT_DELAY (ms, default 900).
+BOTS: in the lobby press 'Add bot / Thêm máy' to play solo. Speed: BOT_DELAY (ms, default 2500).
