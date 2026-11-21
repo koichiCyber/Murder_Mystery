@@ -406,9 +406,10 @@ function playView() {
       actionBar = `<div class="abar"><button class="btn sec" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button><button class="btn" onclick="wizOpen('suggest')" ${left <= 0 ? 'disabled' : ''}>${T('Đặt giả thuyết', 'Suggest')}${left > 1 ? ` (${left})` : ''}</button><button class="btn red" onclick="wizOpen('accuse')">${seize ? T('Chiếm đáp án', 'Seize') : T('Buộc tội', 'Accuse')}</button><button class="btn sec" onclick="doEnd()">${T('Kết thúc lượt', 'End turn')}</button></div>`;
     }
   } else if (S.wiz) S.wiz = null;
+  const nC = v.hand.length + v.secrets.length, avail = Math.min(innerWidth - (S.nbOpen ? 460 : 70), 1100), tsc = Math.max(0.3, Math.min(0.5, (avail - 60 - (nC - 1) * 8 - (v.secrets.length ? 24 : 0)) / (Math.max(nC, 1) * 232)));
   const tray = `<div class="tray"><div class="tab">${T('MẢNH BÀI CỦA BẠN', 'YOUR CARDS')} (${v.hand.length})</div>${v.myRole ? `<button class="pill rolebtn" onclick="showRole()">${T('Vai trò của tôi', 'My role')}</button>` : ''}
-  <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, 0.42)).join('')}</div>
-  ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, 0.42)).join('')}</div></div>` : ''}</div></div>`;
+  <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, tsc)).join('')}</div>
+  ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, tsc)).join('')}</div></div>` : ''}</div></div>`;
   const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><button class="pill" onclick="toggleNB()">✕</button></div>${notebookHTML()}</div></aside>` : '';
   const info = `<span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
   return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="rcorner ${v.round >= v.maxRounds ? 'last' : ''}"><small>${T('VÒNG', 'ROUND')}</small><b>${v.round}<i>/${v.maxRounds}</i></b></div><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;

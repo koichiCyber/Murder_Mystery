@@ -292,3 +292,10 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .rcorner b i{font-size:12px;font-style:normal;opacity:.7}
 .rcorner.last{border-color:#d9503a;animation:bpulse 1.6s infinite}.rcorner.last b{color:#ff9a86}
 .top2 .top h1{padding-left:78px}
+/* tray fits its cards */
+.tray{width:fit-content;min-width:min(100%,380px);max-width:100%;margin-left:auto;margin-right:auto;box-sizing:border-box;overflow-x:auto;overflow-y:visible}
+.tray .trow{flex-wrap:nowrap;justify-content:center}
+
+.tray{width:max-content!important;min-width:260px!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important;display:block}
+.tray .trow{justify-content:center!important;flex-wrap:nowrap!important}
+.tray .cards{justify-content:center;flex-wrap:nowrap}
