@@ -85,3 +85,6 @@ TUNNEL NOTE: Cloudflare Quick Tunnels do not support live streams (SSE), so on a
 UI: green-table layout with a notebook that fills itself in (cards in your hand, cards shown to you, who passed on a suggestion, and deductions). The log was removed.
 
 LANGUAGE: use the VI / EN buttons at the top; the game shows one language at a time (default Vietnamese).
+
+
+BOTS: in the lobby press 'Add bot / Thêm máy' to play solo. Speed: BOT_DELAY (ms, default 900).

@@ -48,7 +48,7 @@ function view(room, me) {
   const g = room.g;
   const v = {
     cfg: CFG, code: room.code, phase: room.phase, me: me.id, hostId: room.hostId, settings: room.settings,
-    players: room.players.map(p => ({ id: p.id, name: p.name, connected: p.conns.size > 0 || (Date.now() - (p.seen || 0) < 6000), status: (p.conns.size > 0 || Date.now() - (p.seen || 0) < 6000) ? 'on' : (Date.now() - (p.seen || 0) < 30000 ? 'away' : 'off'), cards: g ? (g.hands[p.id] || []).length : 0, elim: !!(g && g.elim[p.id]) }))
+    players: room.players.map(p => ({ id: p.id, name: p.name, bot: !!p.bot, connected: !!p.bot || p.conns.size > 0 || (Date.now() - (p.seen || 0) < 6000), status: (p.bot || p.conns.size > 0 || Date.now() - (p.seen || 0) < 6000) ? 'on' : (Date.now() - (p.seen || 0) < 30000 ? 'away' : 'off'), cards: g ? (g.hands[p.id] || []).length : 0, elim: !!(g && g.elim[p.id]) }))
   };
   if (!g) return v;
   v.rolesOn = g.rolesOn; v.teamMode = g.teamMode; v.round = g.round; v.maxRounds = room.settings.maxRounds;
@@ -78,6 +78,78 @@ function broadcast(room) {
     const data = `data: ${JSON.stringify(view(room, p))}\n\n`;
     for (const res of p.conns) { try { res.write(data); } catch (e) {} }
   }
+}
+
+
+// ---------- bots (solo play) ----------
+const BOT_DELAY = envNum('BOT_DELAY', 900);
+const cardIds = k => CARDS[k].map(c => c.id);
+class Brain {
+  constructor() { this.ruled = new Set(); this.known = {}; this.noteN = 0; this.aw = null; this.shown = {}; }
+  update(v) {
+    v.hand.forEach(c => this.ruled.add(c)); v.seen.forEach(x => this.ruled.add(x.card));
+    v.secrets.forEach(id => { this.known[id[0]] = id; });
+    v.notes.slice(this.noteN).forEach(n => Object.values(NAMES).forEach(c => { if (n.vi.includes(c.vi)) this.ruled.add(c.id); }));
+    this.noteN = v.notes.length;
+    if (this.aw && !v.pending) {
+      if (v.seen.length === this.aw.seenLen) { for (const k of ['s', 'w', 'l']) { const id = this.aw[k]; if (!v.hand.includes(id)) this.known[k] = id; } }
+      this.aw = null;
+    }
+  }
+  cand(k) { return this.known[k] ? [this.known[k]] : cardIds(k).filter(id => !this.ruled.has(id)); }
+  sure() { return ['s', 'w', 'l'].every(k => this.cand(k).length === 1); }
+}
+function botActor(room) {
+  const g = room.g; if (!g || room.phase !== 'play') return null;
+  if (g.pending) { const d = byId(room, g.pending.disprover); return d && d.bot ? d : null; }
+  const cur = room.players[g.turn];
+  return cur && cur.bot && !g.elim[cur.id] ? cur : null;
+}
+function botStep(room) {
+  const p = botActor(room); if (!p) return;
+  const g = room.g, v = view(room, p), b = p.brain || (p.brain = new Brain());
+  b.update(v);
+  const go = a => act(room, p, a);
+  if (g.pending) {
+    const pd = v.pending;
+    if (pd.canLie && Math.random() < 0.6) { if (!go({ type: 'lie' })) return; }
+    const prev = (b.shown[pd.suggester] || []).find(c => pd.match.includes(c));
+    const c = prev || pick(pd.match);
+    (b.shown[pd.suggester] = b.shown[pd.suggester] || []).push(c);
+    go({ type: 'show', card: c }); return;
+  }
+  const acc = v.myRole === 'accomplice' && v.teamMode, late = v.round >= v.maxRounds;
+  const fin = r => { if (r) go({ type: 'end' }); };
+  if (b.sure()) return fin(go({ type: 'accuse', s: b.cand('s')[0], w: b.cand('w')[0], l: b.cand('l')[0] }));
+  if (acc && late) return fin(go({ type: 'accuse', s: b.cand('s')[0], w: b.cand('w')[0], l: pick(b.cand('l')) }));
+  if (v.myRole === 'detective' && v.used.lastRound !== v.round) {
+    const others = v.players.filter(x => x.id !== p.id);
+    const cat = ['s', 'w', 'l'].map(k => [k, b.cand(k).length]).sort((x, y) => y[1] - x[1])[0][0];
+    return fin(go({ type: 'power', target: pick(others).id, cat }));
+  }
+  if (v.myRole === 'police' && !v.used.power && v.turn.suggests === 0 && v.round >= 4 && Math.random() < 0.3) {
+    const al = v.players.filter(x => x.id !== p.id && !x.elim);
+    return fin(go({ type: 'power', target: pick(al).id }));
+  }
+  if (v.myRole === 'innocent' && !v.used.power && v.turn.suggests === 1 && v.turn.max === 1) return fin(go({ type: 'power' }));
+  if (v.turn.suggests < v.turn.max) {
+    const sg = { s: pick(b.cand('s')), w: pick(b.cand('w')), l: pick(b.cand('l')) };
+    b.aw = { ...sg, seenLen: v.seen.length };
+    return fin(go({ type: 'suggest', ...sg }));
+  }
+  go({ type: 'end' });
+}
+function scheduleBots(room) {
+  if (room.botTimer || !botActor(room)) return;
+  room.botTimer = setTimeout(() => {
+    room.botTimer = null;
+    const g = room.g, before = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase]) : '';
+    try { botStep(room); } catch (e) { console.error('bot error', e); }
+    const after = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase]) : '';
+    room.botFails = before === after ? (room.botFails || 0) + 1 : 0;
+    broadcast(room);
+    if (room.botFails < 6) scheduleBots(room);
+  }, BOT_DELAY * (0.8 + Math.random() * 0.9));
 }
 
 function aliveIds(room) { return room.players.filter(p => !room.g.elim[p.id]).map(p => p.id); }
@@ -152,6 +224,20 @@ function act(room, p, a) {
       if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng mới bắt đầu được.', 'Only the host can start.');
       if (room.players.length < 2) return E('Cần ít nhất 2 người chơi.', 'Need at least 2 players.');
       startGame(room); return null;
+    }
+    case 'addbot': {
+      if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng, trong phòng chờ.', 'Host only, in the lobby.');
+      if (room.players.length >= MAX_PLAYERS) return E('Phòng đã đủ 6 người.', 'Room is full (6).');
+      let n = room.players.filter(x => x.bot).length + 1, name;
+      do { name = `${a.lang === 'en' ? 'Bot' : 'Máy'} ${n++}`; } while (room.players.some(x => x.name.toLowerCase() === name.toLowerCase()));
+      room.players.push({ id: tok().slice(0, 8), name, token: tok(), conns: new Set(), bot: true });
+      return null;
+    }
+    case 'removebot': {
+      if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng, trong phòng chờ.', 'Host only, in the lobby.');
+      const i = room.players.findIndex(x => x.id === a.id && x.bot);
+      if (i < 0) return E('Không tìm thấy bot.', 'Bot not found.');
+      room.players.splice(i, 1); return null;
     }
     case 'reset': {
       if (!isHost || room.phase !== 'over') return E('Chỉ chủ phòng, khi ván đã kết thúc.', 'Host only, after the game ends.');
@@ -281,6 +367,8 @@ function act(room, p, a) {
 }
 
 function startGame(room) {
+  room.players.forEach(p => { if (p.bot) p.brain = new Brain(); });
+  room.botFails = 0;
   room.players = shuffle(room.players);
   const n = room.players.length;
   const rolesOn = room.settings.roles && n >= 3;
@@ -335,6 +423,7 @@ const server = http.createServer(async (req, res) => {
       if (!p) return json(res, 404, E('Phiên không hợp lệ.', 'Invalid session.'));
       const r = act(room, p, b);
       broadcast(room);
+      room.botFails = 0; scheduleBots(room);
       return json(res, r ? 400 : 200, r || { ok: true });
     }
     if (req.method === 'GET' && u.pathname === '/api/state') {

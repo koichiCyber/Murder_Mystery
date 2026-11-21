@@ -31,3 +31,8 @@ The card art is generated as SVG by the Python scripts in `cards/`. From that fo
 game/    web game (server.js, public/, start.bat, start.sh)
 cards/   card art generators (gen2.py, gen3.py, gen4.py, suspects2.py, build_cards_json.py)
 ```
+
+
+## Solo play with bots / Chơi một mình với máy
+In the lobby the host presses **Add bot / Thêm máy** (up to 6 players total). Bots play every role. Speed: env `BOT_DELAY` (ms, default 900).
+Trong phòng chờ, chủ phòng bấm **Thêm máy**. Chỉnh tốc độ bằng biến `BOT_DELAY` (ms).
