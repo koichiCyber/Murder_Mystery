@@ -245,10 +245,25 @@ function copyLink() {
 function setSettings() { const m = document.querySelector('input[name=mode]:checked'); api('settings', { roles: $('#roles').checked, mode: m ? m.value : 'team', maxRounds: $('#rounds').value }); }
 
 // ---------- views ----------
+// ---------- background music ----------
+const M = { tracks: [], i: 0, a: null, on: false, muted: localStorage.mm_mute === '1', vol: +(localStorage.mm_vol || 0.35) };
+function musicStart() {
+  if (!M.tracks.length || M.on) return;
+  M.a = new Audio(M.tracks[M.i]); M.a.volume = M.vol; M.a.muted = M.muted;
+  M.a.onended = () => { M.i = (M.i + 1) % M.tracks.length; M.on = false; musicStart(); };
+  M.a.play().then(() => { M.on = true; render(); }).catch(() => { M.on = false; });
+}
+function toggleMusic() {
+  if (!M.on) { M.muted = false; localStorage.mm_mute = '0'; musicStart(); return; }
+  M.muted = !M.muted; M.a.muted = M.muted; localStorage.mm_mute = M.muted ? '1' : '0'; render();
+}
+fetch('/api/music').then(r => r.json()).then(j => { M.tracks = j.tracks || []; if (M.tracks.length) { M.i = Math.floor(Math.random() * M.tracks.length); render(); } }).catch(() => {});
+document.addEventListener('pointerdown', () => { if (!M.on && !M.muted) musicStart(); }, { once: false });
 function topBar() {
+  const MU = `<button class="pill" onclick="toggleMusic()" title="${T('Nhạc nền', 'Music')}">${M.on && !M.muted ? '🎵' : '🔇'}</button>`;
   const L = (k, t) => `<button class="pill ${S.lang === k ? 'on' : ''}" onclick="setLang('${k}')">${t}</button>`;
   const v = S.v;
-  return `<div class="top"><h1>${S.lang === 'en' ? 'Manor Murder Mystery' : 'Án Mạng Dinh Thự'}</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="if(confirm(TL('Rời phòng?', 'Leave room?')))leave()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
+  return `<div class="top"><h1>${S.lang === 'en' ? 'Manor Murder Mystery' : 'Án Mạng Dinh Thự'}</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="if(confirm(TL('Rời phòng?', 'Leave room?')))leave()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
 }
 function homeView() {
   const room = new URLSearchParams(location.search).get('room') || '';

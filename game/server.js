@@ -389,7 +389,7 @@ function startGame(room) {
 }
 
 // ---------- HTTP ----------
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4' };
 function readBody(req) { return new Promise(r => { let b = ''; req.on('data', d => { b += d; if (b.length > 1e5) req.destroy(); }); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch (e) { r({}); } }); }); }
 function json(res, code, obj) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); }
 function auth(q) { const room = rooms[String(q.code || '').toUpperCase()]; if (!room) return {}; const p = room.players.find(x => x.token === q.token); return { room, p }; }
@@ -425,6 +425,11 @@ const server = http.createServer(async (req, res) => {
       broadcast(room);
       room.botFails = 0; scheduleBots(room);
       return json(res, r ? 400 : 200, r || { ok: true });
+    }
+    if (req.method === 'GET' && u.pathname === '/api/music') {
+      let list = [];
+      try { list = fs.readdirSync(path.join(PUB, 'music')).filter(f => /\.(mp3|ogg|wav|m4a)$/i.test(f)).sort(); } catch (e) {}
+      return json(res, 200, { tracks: list.map(f => '/music/' + encodeURIComponent(f)) });
     }
     if (req.method === 'GET' && u.pathname === '/api/state') {
       const { room, p } = auth(Object.fromEntries(u.searchParams));

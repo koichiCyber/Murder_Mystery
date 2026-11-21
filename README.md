@@ -36,3 +36,8 @@ cards/   card art generators (gen2.py, gen3.py, gen4.py, suspects2.py, build_car
 ## Solo play with bots / Chơi một mình với máy
 In the lobby the host presses **Add bot / Thêm máy** (up to 6 players total). Bots play every role. Speed: env `BOT_DELAY` (ms, default 2500).
 Trong phòng chờ, chủ phòng bấm **Thêm máy**. Chỉnh tốc độ bằng biến `BOT_DELAY` (ms).
+
+
+## Background music / Nhạc nền
+Drop .mp3/.ogg/.wav files into game/public/music/ (see README.txt there for CC0 suggestions). A 🎵 button appears in the top bar.
+Bỏ file nhạc vào game/public/music/; nút 🎵 hiện trên thanh trên.
