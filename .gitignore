@@ -2,3 +2,4 @@ node_modules/
 cards/out/
 *.zip
 .DS_Store
+__pycache__/

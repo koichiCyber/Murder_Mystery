@@ -24,10 +24,10 @@ Edit the top of `game/start.bat` (or `start.sh`): `DIFFICULTY=EASY | NORMAL | HA
 - The in-game notebook fills itself in from what you see and deduce.
 
 ## Printable cards / Thẻ in
-The card art is generated as SVG by the Python scripts in `cards/` (`python3 cards/gen4.py` writes `out/*.dc.html` sheets on Letter paper; the web game reads `game/public/cards.json`).
+The card art is generated as SVG by the Python scripts in `cards/`. From that folder, `python3 build_cards_json.py` rebuilds `game/public/cards.json` (used by the web game) and the printable Letter-size sheets in `cards/out/`.
 
 ## Layout
 ```
 game/    web game (server.js, public/, start.bat, start.sh)
-cards/   card art generators (gen2.py, gen3.py, gen4.py, suspects2.py)
+cards/   card art generators (gen2.py, gen3.py, gen4.py, suspects2.py, build_cards_json.py)
 ```
