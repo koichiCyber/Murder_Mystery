@@ -410,8 +410,8 @@ function playView() {
   <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, 0.42)).join('')}</div>
   ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, 0.42)).join('')}</div></div>` : ''}</div></div>`;
   const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><button class="pill" onclick="toggleNB()">✕</button></div>${notebookHTML()}</div></aside>` : '';
-  const info = `<span class="pill rnd">${T('Vòng', 'Round')} ${v.round}/${v.maxRounds}</span><span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
-  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;
+  const info = `<span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
+  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="rcorner ${v.round >= v.maxRounds ? 'last' : ''}"><small>${T('VÒNG', 'ROUND')}</small><b>${v.round}<i>/${v.maxRounds}</i></b></div><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;
 }
 function overView(v) {
   const o = v.over, host = v.hostId === v.me, sol = o.solution;
