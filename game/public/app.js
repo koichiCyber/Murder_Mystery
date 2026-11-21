@@ -21,7 +21,7 @@ const CATN = { s: ['Nghi phạm', 'Suspects'], w: ['Hung khí', 'Weapons'], l: [
 
 function cardHTML(id, scale = 1, cls = '', onclick = '') {
   const c = BY[id], k = KIND[id[0]];
-  return `<div class="cw ${cls}" ${onclick ? `onclick="${onclick}"` : ''} style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:${k.c};transform:scale(${scale})"><div class="hd"><span>${KA[id[0]][S.lang === 'en' ? 1 : 0]}</span></div><div class="art">${c.svg}</div><div class="bd"><div class="nm">${esc(LN(c))}</div><div class="rule"></div><div class="tg">${esc(S.lang === 'en' ? (TAG_EN[c.tag] || '') : c.tag)}</div></div></div></div>`;
+  return `<div class="cw ${cls}" data-cid="${id}" ${onclick ? `onclick="${onclick}"` : ''} style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:${k.c};transform:scale(${scale})"><div class="hd"><span>${KA[id[0]][S.lang === 'en' ? 1 : 0]}</span></div><div class="art">${c.svg}</div><div class="bd"><div class="nm">${esc(LN(c))}</div><div class="rule"></div><div class="tg">${esc(S.lang === 'en' ? (TAG_EN[c.tag] || '') : c.tag)}</div></div></div></div>`;
 }
 function roleHTML(rid, scale = 1, teamMode = true) {
   const r = ROLES[rid]; if (!r) return '';
@@ -78,11 +78,17 @@ async function joinRoom() {
 function nbKey() { return `mm_nb_${S.session.code}_${S.session.id}`; }
 function onState() {
   const v = S.v;
-  if (v.phase === 'play' && S.prevPhase !== 'play') {
-    S.nb = {}; localStorage.removeItem(nbKey()); S.sel = { s: null, w: null, l: null }; S.shownRole = false; S.prevSeen = 0;
+  if (v.phase === 'play') {
+    const gk = 'mm_game_' + v.code, sig = (v.hand || []).join(',');
+    if (localStorage.getItem(gk) !== sig) { localStorage.setItem(gk, sig); S.nb = {}; localStorage.removeItem(nbKey()); S.sel = { s: null, w: null, l: null }; S.shownRole = false; S.prevSeen = v.seen.length; S.lastAns = null; }
+  }
+  if (v.phase === 'play') {
+    const h = (v.hist || [])[(v.hist || []).length - 1], key = h && h.ans ? h.n + ':' + h.ans : '';
+    if (key && key !== S.lastAns && S.prevPhase === 'play' && S.lastAns !== undefined) flyBack(h);
+    S.lastAns = key || (h ? h.n + ':' : '');
   }
   if (v.phase === 'play' && !S.shownRole) { S.shownRole = true; const fk = 'mm_intro_' + v.code + '_' + (v.hand || []).join(''); if (!sessionStorage.getItem(fk)) { sessionStorage.setItem(fk, 1); showHandIntro(); } }
-  if (v.phase === 'play' && S.prevPhase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; revealCard(s.card, s.byName); }
+  if (v.phase === 'play' && S.prevPhase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; setTimeout(() => revealCard(s.card, s.byName), 1700); }
   if (v.phase === 'play') S.prevSeen = v.seen.length;
   S.prevPhase = v.phase;
   render();
@@ -235,7 +241,33 @@ function doAccuse() {
 function doEnd() { api('end'); }
 function doPower() { const v = S.v; if (v.myRole === 'innocent') return api('power'); if (!S.pw.target) return toast('Chọn một người.', 'Pick a player.'); api('power', S.pw); }
 function setPw(f, val) { S.pw[f] = val; }
-function show(card) { api('show', { card }); }
+function show(card) {
+  const src = document.querySelector(`[data-cid="${card}"]`), v = S.v, pd = v.pending;
+  if (src && pd) { S.flown = (v.hist[v.hist.length - 1] || {}).n; flyCard(src.getBoundingClientRect(), cardHTML(card, 1), pdTarget(pd.suggester), true); }
+  api('show', { card });
+}
+function pdTarget(id) { const i = S.v.players.findIndex(p => p.id === id), el = document.querySelectorAll('.pstrip .pp')[i]; return el ? el.getBoundingClientRect() : { left: innerWidth / 2, top: 0, width: 10, height: 10 }; }
+function flyBack(h) {
+  if (S.flown === h.n && h.ans === S.v.me) { S.flown = null; return; }
+  const i = S.v.players.findIndex(p => p.id === h.ans), el = document.querySelectorAll('.pstrip .pp')[i];
+  const r = el ? el.getBoundingClientRect() : { left: innerWidth / 2, top: 0, width: 40, height: 40 };
+  flyCard(r, null, pdTarget(h.by), false);
+}
+function flyCard(from, faceHTML, to, flip) {
+  const W = 232, H = 325, cx = innerWidth / 2 - W / 2, cy = innerHeight / 2 - H / 2, el = document.createElement('div');
+  el.className = 'flyc';
+  el.innerHTML = `<div class="fi"><div class="fb"><span>?</span></div>${faceHTML ? `<div class="ff">${faceHTML}</div>` : ''}</div>`;
+  el.style.cssText = `left:0;top:0;width:${W}px;height:${H}px`;
+  document.body.appendChild(el);
+  const sc = Math.max(0.12, Math.min(0.5, (from.width || 60) / W)), fx = from.left + (from.width - W) / 2, fy = from.top + (from.height - H) / 2;
+  const tx = to.left + (to.width - W) / 2, ty = to.top + (to.height - H) / 2, ts = Math.max(0.1, Math.min(0.25, (to.width || 50) / W));
+  const inner = el.firstChild;
+  if (faceHTML) inner.style.transform = 'rotateY(180deg)'; // face-up first
+  const T0 = `translate(${fx}px,${fy}px) scale(${sc})`, T1 = `translate(${cx}px,${cy}px) scale(1.15)`, T2 = `translate(${tx}px,${ty}px) scale(${ts})`;
+  const a = el.animate([{ transform: T0, opacity: 0.9 }, { transform: T1, opacity: 1, offset: 0.35 }, { transform: T1, opacity: 1, offset: 0.65 }, { transform: T2, opacity: 0.2 }], { duration: 1600, easing: 'ease-in-out', fill: 'forwards' });
+  if (faceHTML) inner.animate([{ transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)', offset: 0.35 }, { transform: 'rotateY(0deg)', offset: 0.5 }, { transform: 'rotateY(0deg)' }], { duration: 1600, fill: 'forwards' });
+  a.onfinish = () => el.remove();
+}
 function lie() { api('lie'); }
 function setLang(l) { S.lang = l; localStorage.mm_lang = l; render(); }
 function copyLink() {
