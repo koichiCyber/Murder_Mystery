@@ -45,7 +45,7 @@ try { THEMES = JSON.parse(fs.readFileSync(path.join(PUB, 'themes.json'), 'utf8')
 const nm = (id, room) => { const t = room && room.settings && THEMES.themes[room.settings.theme]; return (t && t.cards[id]) || NAMES[id]; };
 const TURN_C = parseInt(process.env.CLASSIC_TURN, 10) || 45000;
 
-function pub(room, vi, en) { room.log.push({ vi, en }); if (room.log.length > 300) room.log.shift(); }
+function pub(room, vi, en) { room.log.push({ vi, en, r: room.g ? room.g.round : 0 }); if (room.log.length > 300) room.log.shift(); }
 function byId(room, id) { return room.players.find(p => p.id === id); }
 function nameOf(room, id) { const p = byId(room, id); return p ? p.name : '?'; }
 
@@ -70,14 +70,15 @@ function view(room, me) {
   v.used = g.used[me.id];
   v.turn = { suggests: g.t.suggests, max: g.t.max };
   v.lastAccuse = g.lastAccuse || null;
-  if (!g.ult && g.turnUntil && room.phase === 'play' && !g.pending && !g.over) v.turnLeft = Math.max(0, (g.turnUntil - Date.now()) / 1000);
+  v.rc = g.rc ? { left: Math.max(0, Math.ceil((g.rc.until - Date.now()) / 1000)), ready: Object.fromEntries(room.players.map(x => [x.id, !!g.rc.ready[x.id]])), mine: !!g.rc.ready[me.id] } : null;
+  if (!g.ult && !g.rc && g.turnUntil && room.phase === 'play' && !g.pending && !g.over) v.turnLeft = Math.max(0, (g.turnUntil - Date.now()) / 1000);
   if (g.pending) {
     const pd = g.pending;
     v.pending = { suggester: pd.suggester, disprover: pd.disprover, s: pd.s, w: pd.w, l: pd.l, kind: pd.kind || 'suggest', cat: pd.cat || null, order: pd.order, pos: pd.pos, passed: pd.h ? pd.h.passed : [] };
     if (pd.disprover === me.id) { v.pending.match = pd.match; v.pending.canLie = !g.ult && CFG.accWithhold && pd.kind !== 'reveal' && g.rolesOn && g.roles[me.id] === 'accomplice' && !g.used[me.id].lie; }
   }
   if (g.ult) U.view(room, me, v);
-  if (room.phase === 'over') v.over = { ...g.over, solution: g.solution, roles: g.rolesOn ? g.roles : null, hands: g.hands };
+  if (room.phase === 'over') v.over = { ...g.over, solution: g.solution, roles: g.rolesOn ? g.roles : null, hands: g.hands, log: room.log.filter(l => /accuses|Wrong|is out|eliminated|jailed|Nobody is jailed|rrest|Police|🌙|Village meeting|🏁|New game|Ultima|Time's up|time\./.test(l.en)).map(l => ({ r: l.r, vi: l.vi, en: l.en })) };
   return v;
 }
 function broadcast(room) {
@@ -109,7 +110,7 @@ class Brain {
   sure() { return ['s', 'w', 'l'].every(k => this.cand(k).length === 1); }
 }
 function botActor(room) {
-  const g = room.g; if (!g || room.phase !== 'play') return null;
+  const g = room.g; if (!g || room.phase !== 'play' || g.rc) return null;
   if (g.ult) return U.botActor(room);
   if (g.pending) { const d = byId(room, g.pending.disprover); return d && d.bot ? d : null; }
   const cur = room.players[g.turn];
@@ -262,6 +263,8 @@ function act(room, p, a) {
     }
   }
   if (room.phase !== 'play') return E('Ván chưa chạy.', 'The game is not running.');
+  if (a.type === 'ready') { if (g.rc) g.rc.ready[p.id] = true; return null; }
+  if (g.rc) return E('Đang chờ mọi người sẵn sàng.', 'Waiting for everyone to get ready.');
   if (g.ult) return U.act(room, p, a);
   const meId = p.id, myTurn = room.players[g.turn].id === meId;
 
@@ -390,7 +393,7 @@ function startGame(room) {
   room.players.forEach(p => { if (p.bot) p.brain = new Brain(); });
   room.botFails = 0;
   room.players = shuffle(room.players);
-  if (room.settings.game === 'ultima') return U.start(room);
+  if (room.settings.game === 'ultima') { const r = U.start(room); initRC(room); return r; }
   const n = room.players.length;
   const rolesOn = room.settings.roles && n >= 3;
   const solution = { s: pick(CARDS.s).id, w: pick(CARDS.w).id, l: pick(CARDS.l).id };
@@ -407,11 +410,27 @@ function startGame(room) {
   room.g = { solution, hands, roles, rolesOn, teamMode: rolesOn && room.settings.mode === 'team', used, seen, notes, elim: {}, turn: 0, round: 1, t: { suggests: 0, max: 1 }, pending: null, over: null, turnUntil: Date.now() + TURN_C, turnTick: Date.now() };
   room.phase = 'play'; room.log = [];
   pub(room, `Ván mới với ${n} người, ${rolesOn ? (room.g.teamMode ? 'chế độ Đội' : 'chế độ Một mình (có vai trò)') : 'không vai trò'}. ${room.players[0].name} đi trước.`, `New game with ${n} players, ${rolesOn ? (room.g.teamMode ? 'Team mode' : 'Free-for-all (with roles)') : 'no roles'}. ${room.players[0].name} goes first.`);
+  initRC(room);
 }
 
+const RC_MS = parseInt(process.env.RC_TIMEOUT, 10) || 40000;
+function initRC(room) {
+  const g = room.g; if (!g) return;
+  g.rc = { until: Date.now() + RC_MS, ready: {} };
+  room.players.forEach(p => { if (p.bot) g.rc.ready[p.id] = true; });
+}
+function humansPresent(room) { return room.players.filter(p => !p.bot && (p.conns.size > 0 || !p.seen || Date.now() - p.seen < 30000)); }
+function rcTick(room) {
+  const g = room.g; if (!g || !g.rc || room.phase !== 'play') return false;
+  const all = humansPresent(room).every(p => g.rc.ready[p.id]);
+  if (!all && Date.now() < g.rc.until) return false;
+  g.rc = null; const now = Date.now();
+  if (g.ult) U.resume(room); else { g.turnUntil = now + TURN_C; g.turnTick = now; }
+  return true;
+}
 function classicTick(room) {
   const g = room.g, now = Date.now();
-  if (!g || g.ult || room.phase !== 'play' || g.over || !g.turnUntil) return false;
+  if (!g || g.ult || g.rc || room.phase !== 'play' || g.over || !g.turnUntil) return false;
   const dt = now - (g.turnTick || now); g.turnTick = now;
   if (g.pending) { g.turnUntil += dt; return false; }   // paused while a suggestion is being answered
   if (now < g.turnUntil) return false;
@@ -421,7 +440,7 @@ function classicTick(room) {
   return true;
 }
 U.init({ CARDS, pub, byId, nameOf, shuffle, pick, ri, E, okCard, nm, finish, findDisprover, act: (room, p, a) => act(room, p, a) });
-setInterval(() => { for (const c in rooms) { const r = rooms[c]; try { if (U.tick(r) | classicTick(r)) { broadcast(r); r.botFails = 0; scheduleBots(r); } } catch (e) { console.error('tick', e); } } }, 400);
+setInterval(() => { for (const c in rooms) { const r = rooms[c]; try { if (U.tick(r) | classicTick(r) | rcTick(r)) { broadcast(r); r.botFails = 0; scheduleBots(r); } } catch (e) { console.error('tick', e); } } }, 400);
 
 // ---------- HTTP ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4' };

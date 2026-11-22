@@ -10,16 +10,20 @@ const ACTS = {
 const type = id => String(id).split('_')[0];
 const aname = id => ACTS[type(id)] || { vi: '?', en: '?' };
 const TEAMS = { detective: 'good', forensic: 'good', police: 'good', witness: 'good', villager: 'good', accomplice: 'bad' };
+const ACC_W_ROUND = process.env.ULT_ACC_W_ROUND ? parseInt(process.env.ULT_ACC_W_ROUND, 10) : 5; // Accomplices learn the weapon from this round (they always know the suspect)
+const SEIZE_R = process.env.ULT_SEIZE_ROUND ? parseInt(process.env.ULT_SEIZE_ROUND, 10) : 4; // earliest round an Accomplice may seize the answer
+const PILE_X = process.env.ULT_PILE_X !== undefined ? parseFloat(process.env.ULT_PILE_X) : 1.8;
 let X = null; // context from server.js
 const now = () => Date.now();
 
 function init(ctx) { X = ctx; }
 
 function roleList(n) {
+  // 6: 1 Bad. 7-8: still 1 Bad (more Good). 9-11: 2 Bad. 12: 3 Bad.
   const r = ['detective', 'forensic', 'witness', 'villager', 'villager', 'accomplice'];
-  if (n >= 7) r.push('accomplice');
-  if (n >= 8) r.push('villager');
-  if (n >= 9) r.push('police');
+  if (n >= 7) r.push('villager');
+  if (n >= 8) r.push('police');
+  if (n >= 9) r.push('accomplice');
   if (n >= 10) r.push('villager');
   if (n >= 11) r.push('villager');
   if (n >= 12) r.push('accomplice');
@@ -31,6 +35,8 @@ function buildDeck(n) {
     if (t === 'blank') { const per = Math.max(1, Math.round(5 * f)); for (const c of ['A', 'B']) for (let i = 1; i <= per; i++) d.push(`blank_${c}${i}`); }
     else { const c = Math.max(1, Math.round(ACTS[t].base * f)); for (let i = 1; i <= c; i++) d.push(`${t}_${i}`); }
   }
+  const extra = Math.round(PILE_X * n); // extra blank evidence so the pile lasts about 6-7 rounds
+  for (let k = 0; k < extra; k++) d.push(`blank_${k % 2 ? 'B' : 'A'}${100 + k}`);
   return X.shuffle(d);
 }
 
@@ -325,7 +331,7 @@ function actInner(room, p, a) {
     case 'accuse': {
       const r = reqTurn(); if (r) return r;
       const role = g.roles[me];
-      if (role === 'accomplice' && g.round < 3) return E('Đồng phạm chỉ được chiếm đáp án từ vòng 3.', 'The Accomplice can only seize the answer from round 3.');
+      if (role === 'accomplice' && g.round < SEIZE_R) return E(`Đồng phạm chỉ được chiếm đáp án từ vòng ${SEIZE_R}.`, `The Accomplice can only seize the answer from round ${SEIZE_R}.`);
       if (!X.okCard('s', a.s) || !X.okCard('w', a.w) || !X.okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       const ok = a.s === g.solution.s && a.w === g.solution.w && a.l === g.solution.l;
       g.accN = (g.accN || 0) + 1; g.lastAccuse = { n: g.accN, by: me, s: a.s, w: a.w, l: a.l, res: ok ? 'right' : 'wrong' };
@@ -351,7 +357,7 @@ function actInner(room, p, a) {
 
 // ---------- timers (called ~2x/second) ----------
 function tick(room) {
-  if (room.phase !== 'play' || !room.g || !room.g.ult) return false;
+  if (room.phase !== 'play' || !room.g || !room.g.ult || room.g.rc) return false;
   const g = room.g, u = g.ult, t = now();
   let ch = false;
   if (u.sub === 'night' && u.night && t >= u.night.until) { resolveNight(room); ch = true; }
@@ -376,11 +382,11 @@ function view(room, me, v) {
     const r = g.roles[me.id];
     if (r === 'forensic') secrets.push(g.solution.w);
     if (r === 'police') secrets.push(g.solution.l);
-    if (r === 'accomplice') secrets.push(g.solution.s, g.solution.w);
+    if (r === 'accomplice') { secrets.push(g.solution.s); if (g.round >= ACC_W_ROUND) secrets.push(g.solution.w); }
   }
   v.secrets = secrets;
   v.used = g.used[me.id];
-  if (g.turn !== undefined && !g.elim[room.players[g.turn].id] && !g.pending && !u.window && u.sub === 'turn' && u.turnUntil) v.turnLeft = left(u.turnUntil);
+  if (g.turn !== undefined && !g.elim[room.players[g.turn].id] && !g.pending && !g.rc && !u.window && u.sub === 'turn' && u.turnUntil) v.turnLeft = left(u.turnUntil);
   const w = u.window;
   v.ult = {
     hard: u.hard, sub: u.sub, myActs: (u.acts[me.id] || []).slice(), pile: u.pile.length, discard: u.discard.length,
@@ -443,4 +449,9 @@ function botStep(room, p, v, b) {
   go({ type: 'end' });
 }
 
-module.exports = { init, start, act, tick, view, botActor, botStep, nextTurn, ACTS, TEAMS, type };
+function resume(room) { // after the start-of-game ready check
+  const u = room.g.ult;
+  if (u.sub === 'night' && u.night) u.night.until = now() + NIGHT;
+  if (u.turnUntil) u.turnUntil = now() + (u.hard ? TURN : TURN_N);
+}
+module.exports = { init, resume, start, act, tick, view, botActor, botStep, nextTurn, ACTS, TEAMS, type };

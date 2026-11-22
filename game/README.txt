@@ -96,3 +96,7 @@ Classic mode timer: each turn lasts 45 seconds (env CLASSIC_TURN in ms); the clo
 
 
 CARD THEMES: host picks one in the lobby (Classic, Modern day, Showbiz stars, Space station). Data: public/themes.json (python3 ../cards/build_themes.py rebuilds it). Same card ids, so rules and bots are unaffected.
+
+
+READY CHECK: every game starts with a Ready screen (RC_TIMEOUT ms, default 40000).
+ULTIMA BALANCE: Accomplices know the suspect, learn the weapon from round 5 (ULT_ACC_W_ROUND); extra blank evidence cards (ULT_PILE_X, default 1.8 per player).
