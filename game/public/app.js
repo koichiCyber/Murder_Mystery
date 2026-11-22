@@ -27,7 +27,50 @@ function roleHTML(rid, scale = 1, teamMode = true) {
   const r = ROLES[rid]; if (!r) return '';
   const en = S.lang === 'en';
   const team = r.team === 'none' ? (en ? 'NOT DEALT' : 'KHÔNG PHÁT') : !teamMode ? (en ? 'SOLO' : 'MỘT MÌNH') : r.team === 'good' ? (en ? 'GOOD TEAM' : 'PHE THIỆN') : (en ? 'BAD TEAM' : 'PHE ÁC');
-  return `<div class="cw" style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:#4B2E5E;transform:scale(${scale})"><div class="hd"><span>${en ? 'ROLE' : 'VAI TRÒ'}</span><span>${team}</span></div><div class="art r">${r.svg}</div><div class="bd"><div class="nm">${esc(en ? r.en : r.vi)}</div><div class="rule"></div><div class="ab">${esc(en ? r.ab_en : r.ab_vi)}</div></div></div></div>`;
+  return `<div class="cw" style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:#4B2E5E;transform:scale(${scale})"><div class="hd"><span>${en ? 'ROLE' : 'VAI TRÒ'}</span><span>${team}</span></div><div class="art r">${r.svg}</div><div class="bd"><div class="nm">${esc(en ? r.en : r.vi)}</div><div class="rule"></div><div class="ab">${esc(S.v && S.v.ult && S.v.ult.hard && ultRoleText(rid) ? ultRoleText(rid) : (en ? r.ab_en : r.ab_vi))}</div></div></div></div>`;
+}
+const ACT = {
+  counter: { i: '✋', c: '#B3261E', vi: 'Phản đối!', en: 'Counter!', dv: 'Hủy 1 lá hành động vừa chơi. Phản đối được Phản đối.', de: 'Cancels the action card just played. Can be countered.' },
+  dodge: { i: '🫥', c: '#3B6E8F', vi: 'Lánh mặt', en: 'Lie low', dv: 'Kết thúc lượt mà không rút bài.', de: 'End your turn without drawing.' },
+  frame: { i: '🪤', c: '#7A4B8F', vi: 'Đổ tội', en: 'Frame', dv: 'Kết thúc lượt không rút bài; người kế tiếp đi 2 lượt.', de: 'End turn without drawing; the next player takes 2 turns.' },
+  intuition: { i: '🔮', c: '#5B5BA8', vi: 'Linh cảm', en: 'Hunch', dv: 'Bí mật xem 3 lá trên cùng chồng bằng chứng.', de: 'Secretly look at the top 3 cards of the evidence pile.' },
+  shuffle: { i: '🌀', c: '#2F8F83', vi: 'Xáo trộn hiện trường', en: 'Scene shuffle', dv: 'Xáo ngẫu nhiên chồng bằng chứng.', de: 'Shuffle the evidence pile.' },
+  interrogate: { i: '🔦', c: '#B8862F', vi: 'Thẩm vấn', en: 'Interrogate', dv: 'Chọn 1 người: họ bí mật cho bạn xem 1 lá manh mối do họ chọn.', de: 'Pick a player: they secretly show you 1 clue card of their choice.' },
+  false: { i: '🤥', c: '#8F3B3B', vi: 'Lời khai giả', en: 'False testimony', dv: 'Khi phải bác bỏ giả thuyết: không cho xem gì. Không dùng được với Thám tử.', de: 'When you must refute: show nothing. Not usable by the Detective.' },
+  extra: { i: '➕', c: '#3B8F4B', vi: 'Giả thuyết thêm', en: 'Extra suggestion', dv: 'Được đưa thêm 1 giả thuyết trong lượt này.', de: 'One more suggestion this turn.' },
+  blank: { i: '⬜', c: '#8a8a8a', vi: 'Giấy trắng', en: 'Blank paper', dv: 'Không có tác dụng. Đánh một cặp cùng màu: rút ngẫu nhiên 1 lá hành động của người khác.', de: 'No effect. Play a same-colour pair: take 1 random action card from another player.' }
+};
+const atype = id => String(id).split('_')[0];
+function actHTML(id, o = {}) {
+  const t = atype(id), a = ACT[t], col = t === 'blank' ? (id.split('_')[1][0] === 'A' ? '#6b8ec9' : '#c98f6b') : a.c, en = S.lang === 'en';
+  return `<div class="act ${o.cls || ''} ${o.sel ? 'sel' : ''}" data-aid="${id}" style="--c:${col}" ${o.click ? `onclick="${o.click}"` : ''} title="${esc(en ? a.de : a.dv)}"><div class="ai">${a.i}</div><div class="an">${esc(en ? a.en : a.vi)}</div>${t === 'blank' ? `<div class="ad">${id.split('_')[1][0]}</div>` : `<div class="ad">${esc(en ? a.de : a.dv)}</div>`}</div>`;
+}
+function targetModal(title, cb) {
+  const v = S.v; S.tcb = cb;
+  $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3>${esc(title)}</h3><div class="tgl">${v.players.map((p, i) => p.id !== v.me && !p.elim ? `<button class="btn sec" onclick="closeModal();S.tcb('${p.id}')">${avatar(i, 26)} ${esc(p.name)}</button>` : '').join('')}</div><div style="text-align:center;margin-top:10px"><button class="btn sec" onclick="closeModal()">${T('Hủy', 'Cancel')}</button></div></div></div>`;
+}
+function playAct(id) {
+  const v = S.v, t = atype(id);
+  if (t === 'interrogate') return targetModal(T('Thẩm vấn ai?', 'Interrogate whom?'), x => api('ult_play', { card: id, target: x }));
+  if (t === 'blank') { S.blankSel = S.blankSel || []; const i = S.blankSel.indexOf(id); if (i >= 0) S.blankSel.splice(i, 1); else S.blankSel.push(id); if (S.blankSel.length > 2) S.blankSel.shift(); return render(); }
+  api('ult_play', { card: id });
+}
+function playPair() { const cs = S.blankSel.slice(); S.blankSel = []; targetModal(T('Lấy bài của ai?', 'Take a card from whom?'), x => api('ult_play', { cards: cs, target: x })); render(); }
+function counterNow() { api('ult_counter'); }
+function falseNow() { api('ult_false'); }
+function nightPick(id) { api('ult_night', { target: id }); }
+function voteFor(id) { api('ult_vote', { target: id }); }
+function arrestUlt() { targetModal(T('Bắt giữ ai? (1 lần, sai thì bạn bị loại)', 'Arrest whom? (once; wrong = you are out)'), x => api('ult_arrest', { target: x })); }
+function ultRoleText(r) {
+  const en = S.lang === 'en', m = {
+    detective: ['Thiện · Mỗi đêm soi 1 người: nếu họ giữ nghi phạm, bạn biết các nghi phạm đó không phải hung thủ. Không biết gì khi bắt đầu.', 'Good · Each night inspect 1 player: any suspects they hold are not the murderer. Knows nothing at the start.'],
+    forensic: ['Thiện · Biết HUNG KHÍ. Không có quyền ban đêm.', 'Good · Knows the WEAPON. No night power.'],
+    police: ['Thiện · Biết ĐỊA ĐIỂM. 1 lần/ván, ban ngày: bắt 1 người. Đúng Đồng phạm thì họ bị loại, sai thì bạn bị loại.', 'Good · Knows the LOCATION. Once per game, by day: arrest 1 player. Right = they are out; wrong = you are out.'],
+    witness: ['Thiện · Biết hung thủ là 1 trong 2 nghi phạm được gợi ý.', 'Good · Knows the murderer is one of 2 hinted suspects.'],
+    villager: ['Thiện · Không biết gì, không có quyền. Chơi bằng thẻ hành động, giả thuyết và lá phiếu.', 'Good · Knows nothing, no power. Plays with action cards, suggestions and the vote.'],
+    accomplice: ['Ác · Biết NGHI PHẠM và HUNG KHÍ. Từ vòng 3 có thể chiếm đáp án bằng buộc tội (sai thì bị loại). Chỉ được bỏ phiếu từ vòng 5.', 'Bad · Knows the SUSPECT and WEAPON. From round 3 may seize the answer by accusing (wrong = out). May only vote from round 5.']
+  };
+  return m[r] ? m[r][en ? 1 : 0] : '';
 }
 const cname = id => BY[id] ? esc(LN(BY[id])) : '';
 
@@ -41,7 +84,14 @@ async function api(type, data = {}) {
 function saveSession(s) { S.session = s; localStorage.mm_session = JSON.stringify(s); }
 function stopLive() { if (S.es) S.es.close(); S.es = null; if (S.poll) clearInterval(S.poll); S.poll = null; }
 function leave() { stopLive(); S.session = null; S.v = null; S.raw = ''; localStorage.removeItem('mm_session'); render(); }
-function applyRaw(txt) { if (txt === S.raw) return; S.raw = txt; S.v = JSON.parse(txt); onState(); }
+function applyRaw(txt) {
+  if (txt === S.raw) return; S.raw = txt;
+  const k = txt.replace(/"(left|turnLeft|ansLeft)":[0-9.]+/g, '"$1":0'); S.recvAt = Date.now();
+  if (k === S.rawKey && S.v) { S.v = JSON.parse(txt); return; }
+  S.rawKey = k; S.v = JSON.parse(txt); onState();
+}
+function cdVal(path) { let o = S.v; for (const p of path.split('.')) { if (!o) return null; o = o[p]; } return typeof o === 'number' ? o : null; }
+setInterval(() => document.querySelectorAll('.cd').forEach(el => { const l = cdVal(el.dataset.cd); if (l === null) return; el.textContent = Math.max(0, l - (Date.now() - (S.recvAt || Date.now())) / 1000).toFixed(el.dataset.int ? 0 : 1) + 's'; }), 200);
 async function pollOnce() {
   if (!S.session) return;
   const { code, token } = S.session;
@@ -116,8 +166,27 @@ function showRole() {
     : v.myRole === 'accomplice' ? T(`Bạn biết Hung thủ (NGHI PHẠM)${v.cfg.accWeapon ? ' và HUNG KHÍ' : ''} của vụ án. Chỉ được chiếm đáp án từ vòng ${v.teamMode ? v.cfg.accSeizeTeam : v.cfg.accSeizeFfa}.${v.cfg.accWithhold ? '' : ' Không được giấu lá.'}`, `You know the Murderer (SUSPECT)${v.cfg.accWeapon ? ' and the WEAPON' : ''}. You may seize the answer from round ${v.teamMode ? v.cfg.accSeizeTeam : v.cfg.accSeizeFfa}.${v.cfg.accWithhold ? '' : ' You cannot withhold cards.'}`) : '';
   $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3 style="margin-bottom:10px">${T('Vai trò bí mật của bạn', 'Your secret role')}</h3><div class="row" style="align-items:flex-start;justify-content:center">${roleHTML(v.myRole, 0.9, v.teamMode)}</div>${sec ? `<div style="margin-top:12px">${why}</div><div class="cards" style="margin-top:8px;justify-content:center">${sec}</div>` : ''}<div style="margin-top:14px;text-align:center"><button class="btn" onclick="closeModal()">${T('Đã hiểu — ẩn đi', 'Got it — hide')}</button></div></div></div>`;
 }
+function showVoteResult() {
+  const v = S.v, lv = v.ult && v.ult.lastVote; if (!lv) return;
+  const nm = id => id === v.me ? T('Bạn', 'You') : esc((v.players.find(p => p.id === id) || {}).name);
+  $('#modal').innerHTML = `<div class="back" onclick="closeModal()"><div class="box"><h3>🗳️ ${T('Kết quả họp làng', 'Village vote result')}</h3><table class="tbl">${Object.entries(lv.votes).map(([a, b]) => `<tr><td>${nm(a)}</td><td>→ ${b === 'abstain' ? T('Bỏ qua', 'Abstain') : nm(b)}</td></tr>`).join('')}</table><div class="win" style="font-size:18px;margin-top:10px">${lv.jailed ? T(`${nm(lv.jailed)} bị giam và bị loại!`, `${nm(lv.jailed)} is jailed and out!`) : T('Không ai bị giam.', 'Nobody is jailed.')}</div><div style="text-align:center;margin-top:10px"><button class="btn" onclick="closeModal()">OK</button></div></div></div>`;
+}
 function showRules() {
   const v = S.v;
+  if (v && v.ult) {
+    const en = S.lang === 'en', P = (a, b) => `<p>${en ? b : a}</p>`;
+    const hard = v.ult.hard;
+    const roles = hard ? ['detective', 'forensic', 'police', 'witness', 'villager', 'accomplice'].map(r => `<div style="margin:6px 0"><b>${esc(LN(ROLES[r]))}</b><div>${esc(ultRoleText(r))}</div></div>`).join('') : '';
+    const acts = hard ? Object.entries(ACT).map(([t, a]) => `<div style="margin:5px 0">${a.i} <b>${esc(en ? a.en : a.vi)}</b>: ${esc(en ? a.de : a.dv)}</div>`).join('') : '';
+    $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3>Ultima ${hard ? T('Khó', 'Hard') : T('Bình thường', 'Normal')}</h3>
+    ${P('Hồ Sơ Mật: mỗi ván có 1 nghi phạm, 1 hung khí, 1 địa điểm bí mật. Đưa giả thuyết; người kế tiếp có lá trùng sẽ bí mật cho bạn xem 1 lá. Khi chắc chắn thì buộc tội: sai là bị loại, bài của bạn được lật cho cả bàn.', 'Secret case file: each game hides 1 suspect, 1 weapon, 1 location. Suggest; the next player holding a matching card secretly shows you 1. When sure, accuse: wrong = you are out and your cards are revealed to the table.')}
+    ${hard ? P('Mỗi lượt có 90 giây. Chơi thẻ hành động tuỳ ý (mỗi lá chờ 5 giây để người khác Phản đối), tối đa 1 giả thuyết (2 nếu có Giả thuyết thêm), buộc tội tuỳ chọn, rồi kết thúc lượt: rút 1 thẻ hành động từ chồng bằng chứng (trừ khi đã Lánh mặt hoặc Đổ tội). Hết giờ: máy tự rút 1 lá và kết thúc lượt.', 'Each turn lasts 90 seconds. Play any action cards (each waits 5 seconds for a Counter), at most 1 suggestion (2 with Extra suggestion), optionally accuse, then end the turn: draw 1 action card from the evidence pile (unless you played Lie low or Frame). Out of time: the game draws 1 card and ends your turn.') : P('Mức Bình thường: không vai trò, không thẻ hành động. Lượt kết thúc ngay sau khi giả thuyết được trả lời. Người cuối cùng còn lại thắng; hết số vòng mà chưa ai đúng thì không ai thắng.', 'Normal: no roles, no action cards. The turn ends right after the suggestion is answered. Last one standing wins; if the round limit passes with no correct accusation, nobody wins.')}
+    ${hard ? `<h4>${T('Vai trò', 'Roles')}</h4>${roles}<h4>${T('Thẻ hành động', 'Action cards')}</h4>${acts}
+    ${P('Họp làng: từ cuối vòng 2, sau lượt người cuối, cả làng bỏ phiếu giam 1 người (cần hơn một nửa số người còn lại). Đồng phạm chưa được bỏ phiếu trước vòng 5.', 'Village meeting: from the end of round 2, after the last player, everyone votes to jail 1 player (more than half of those remaining). Accomplices cannot vote before round 5.')}
+    ${P('Phe Thiện thắng khi một người Thiện buộc tội đúng hoặc loại hết Đồng phạm. Phe Ác thắng khi hết chồng bằng chứng, khi số Đồng phạm bằng hoặc nhiều hơn người Thiện (từ vòng 3), hoặc khi một Đồng phạm chiếm đáp án đúng từ vòng 3.', 'Good wins when a Good player accuses correctly or all Accomplices are out. Bad wins when the evidence pile runs out, when Accomplices equal or outnumber Good players (from round 3), or when an Accomplice seizes the correct answer from round 3.')}` : ''}
+    <div style="text-align:center;margin-top:12px"><button class="btn" onclick="closeModal()">OK</button></div></div></div>`;
+    return;
+  }
   const rs = ['detective', 'witness', 'reporter', 'police', 'innocent', 'accomplice', 'murderer'].map(id => `<div style="margin:8px 0"><b>${esc(LN(ROLES[id]))}</b><div>${esc(S.lang === 'en' ? ROLES[id].ab_en : ROLES[id].ab_vi)}</div></div>`).join('');
   $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3>${T('Luật chơi', 'How to play')}</h3>
   <p>${T('Mỗi lượt: đưa ra một giả thuyết (nghi phạm + hung khí + địa điểm). Người kế tiếp có ít nhất một lá trùng sẽ bí mật cho bạn xem 1 lá. Khi chắc chắn, buộc tội: đúng thì thắng, sai thì bị loại (vẫn phải cho xem bài).', 'Each turn: make a suggestion (suspect + weapon + location). The next player holding a matching card secretly shows you one. When you are sure, accuse: right wins, wrong eliminates you (you still show cards).')}</p>
@@ -141,6 +210,7 @@ function computeNB() {
   (v.hand || []).forEach(c => setHas(c, me));
   const seenSet = {};
   (v.seen || []).forEach(s => { seenSet[s.card + '|' + s.by] = 1; if (!holder[s.card]) setHas(s.card, s.by); });
+  if (v.ult) Object.entries(v.ult.revealed || {}).forEach(([pid, r]) => (r.hand || []).forEach(c => { if (!holder[c]) setHas(c, pid); }));
   (v.secrets || []).forEach(c => (solved[c] = true));
   const hist = v.hist || [];
   for (let it = 0; it < 6; it++) {
@@ -286,7 +356,10 @@ function copyLink() {
   const u = `${location.origin}/?room=${S.v.code}`;
   (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Đã chép liên kết.', 'Link copied.')).catch(() => prompt('Link:', u));
 }
-function setSettings() { const m = document.querySelector('input[name=mode]:checked'); api('settings', { roles: $('#roles').checked, mode: m ? m.value : 'team', maxRounds: $('#rounds').value }); }
+function setSettings() {
+  const m = document.querySelector('input[name=mode]:checked'), g = document.querySelector('input[name=game]:checked'), l = document.querySelector('input[name=ulevel]:checked');
+  api('settings', { roles: $('#roles') ? $('#roles').checked : true, mode: m ? m.value : 'team', maxRounds: $('#rounds') ? $('#rounds').value : 8, game: g ? g.value : 'classic', ulevel: l ? l.value : 'hard' });
+}
 
 // ---------- views ----------
 // ---------- background music ----------
@@ -322,12 +395,18 @@ function lobbyView() {
   const pls = v.players.map(p => `<div class="pl"><span class="dot ${p.connected ? '' : 'off'}"></span><span class="n">${esc(p.name)}</span>${p.id === v.hostId ? ` <span class="s">★ ${T('chủ phòng', 'host')}</span>` : ''}${p.bot ? ` <span class="s">🤖</span>${host ? ` <a href="#" style="margin-left:6px" onclick="api('removebot',{id:'${p.id}'});return false">✕</a>` : ''}` : ''}</div>`).join('');
   const rolesOk = v.players.length >= 3;
   return `<div class="wrap">${topBar()}<div class="panel" style="text-align:center"><div class="lab">${T('MÃ PHÒNG', 'ROOM CODE')}</div><div class="big">${esc(v.code)}</div><div style="margin-top:8px"><button class="btn sec" onclick="copyLink()">${T('Chép liên kết mời bạn', 'Copy invite link')}</button></div></div>
-  <div class="panel"><h3>${T('Người chơi', 'Players')} (${v.players.length}/6)</h3><div class="strip">${pls}</div>${host && v.players.length < 6 ? `<div style="margin-top:10px"><button class="btn sec" onclick="api('addbot',{lang:S.lang})">🤖 ${T('Thêm máy', 'Add bot')}</button></div>` : ''}</div>
+  <div class="panel"><h3>${T('Người chơi', 'Players')} (${v.players.length}/${v.settings.game === 'ultima' ? 10 : 6})</h3><div class="strip">${pls}</div>${host && v.players.length < (v.settings.game === 'ultima' ? 10 : 6) ? `<div style="margin-top:10px"><button class="btn sec" onclick="api('addbot',{lang:S.lang})">🤖 ${T('Thêm máy', 'Add bot')}</button></div>` : ''}</div>
   <div class="panel"><h3>${T('Cài đặt', 'Settings')}</h3>
-  ${host ? `<div class="lab">${T('CHẾ ĐỘ', 'MODE')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="mode" value="team" ${v.settings.mode !== 'ffa' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Chế độ Đội: phe Thiện đấu Đồng phạm', 'Team mode: Good vs the Accomplice')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="mode" value="ffa" ${v.settings.mode === 'ffa' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Chế độ Một mình: ai cũng tự thắng, chỉ 1 người thắng', 'Free-for-all: every player alone, only 1 winner')}</span></label><label class="row" style="margin-bottom:10px"><input type="checkbox" id="roles" ${v.settings.roles ? 'checked' : ''} onchange="setSettings()"> ${T('Dùng thẻ vai trò (cần từ 3 người)', 'Use role cards (needs 3+ players)')}</label>
+  ${host ? `<div class="lab">${T('LOẠI GAME', 'GAME')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="game" value="classic" ${v.settings.game !== 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Cổ điển (2–6 người)', 'Classic (2–6 players)')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="game" value="ultima" ${v.settings.game === 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span><b>Ultima</b> ${T('(Luật v2, 3–10 người)', '(Rules v2, 3–10 players)')}</span></label>
+  ${v.settings.game === 'ultima' ? `<div class="lab">${T('MỨC CHƠI', 'LEVEL')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="ulevel" value="hard" ${v.settings.ulevel !== 'normal' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Khó: vai trò, thẻ hành động, ban đêm, họp làng (cần ≥6 người)', 'Hard: roles, action cards, night, village vote (needs 6+ players)')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="ulevel" value="normal" ${v.settings.ulevel === 'normal' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Bình thường: chỉ Hồ Sơ Mật (Clue), người cuối cùng thắng', 'Normal: Clue only, last one standing wins')}</span></label>
+  ${v.settings.ulevel === 'normal' || v.players.length < 6 ? `<label class="row">${T('Số vòng tối đa', 'Round limit')}: <input type="number" id="rounds" min="4" max="20" value="${v.settings.maxRounds}" style="width:90px" onchange="setSettings()"></label>` : ''}
+  ${v.settings.ulevel !== 'normal' && v.players.length < 6 ? `<div class="en" style="margin-top:8px">${T('Dưới 6 người: tự chơi như mức Bình thường.', 'Under 6 players: plays as Normal.')}</div>` : ''}
+  <div style="margin-top:14px"><button class="btn" ${v.players.length < 3 ? 'disabled' : ''} onclick="api('start')">${T('Bắt đầu ván', 'Start game')}</button></div>` : ''}
+  ${v.settings.game !== 'ultima' ? `<div class="lab">${T('CHẾ ĐỘ', 'MODE')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="mode" value="team" ${v.settings.mode !== 'ffa' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Chế độ Đội: phe Thiện đấu Đồng phạm', 'Team mode: Good vs the Accomplice')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="mode" value="ffa" ${v.settings.mode === 'ffa' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Chế độ Một mình: ai cũng tự thắng, chỉ 1 người thắng', 'Free-for-all: every player alone, only 1 winner')}</span></label><label class="row" style="margin-bottom:10px"><input type="checkbox" id="roles" ${v.settings.roles ? 'checked' : ''} onchange="setSettings()"> ${T('Dùng thẻ vai trò (cần từ 3 người)', 'Use role cards (needs 3+ players)')}</label>
   <label class="row">${T('Số vòng tối đa', 'Round limit')}: <input type="number" id="rounds" min="4" max="20" value="${v.settings.maxRounds}" style="width:90px" onchange="setSettings()"></label>
   <div class="en" style="margin-top:8px">${T('Độ khó', 'Difficulty')}: <b>${v.cfg.name}</b> (${T('chỉnh trong start.bat', 'set in start.bat')})</div>
-  <div style="margin-top:14px"><button class="btn" ${v.players.length < 2 ? 'disabled' : ''} onclick="api('start')">${T('Bắt đầu ván', 'Start game')}</button></div>`
+  <div style="margin-top:14px"><button class="btn" ${v.players.length < 2 ? 'disabled' : ''} onclick="api('start')">${T('Bắt đầu ván', 'Start game')}</button></div>` : ''}`
+      : v.settings.game === 'ultima' ? `<div><b>Ultima</b> · ${T('Mức', 'Level')}: <b>${v.settings.ulevel === 'normal' ? T('Bình thường', 'Normal') : T('Khó', 'Hard')}</b></div><div class="en" style="margin-top:8px">${T('Chờ chủ phòng bắt đầu…', 'Waiting for the host to start…')}</div>`
       : `<div>${T('Chế độ', 'Mode')}: <b>${v.settings.mode === 'ffa' ? T('Một mình', 'Free-for-all') : T('Đội', 'Team')}</b> · ${T('Vai trò', 'Roles')}: <b>${v.settings.roles && rolesOk ? 'ON' : 'OFF'}</b> · ${T('Số vòng', 'Rounds')}: <b>${v.settings.maxRounds}</b> · ${T('Độ khó', 'Difficulty')}: <b>${v.cfg.name}</b></div><div class="en" style="margin-top:8px">${T('Chờ chủ phòng bắt đầu…', 'Waiting for the host to start…')}</div>`}
   ${host && !rolesOk && v.settings.roles ? `<div class="en" style="margin-top:8px">${T('Dưới 3 người sẽ tự tắt vai trò.', 'Under 3 players: roles are turned off automatically.')}</div>` : ''}</div></div>`;
 }
@@ -340,6 +419,7 @@ function pickers() {
   return h;
 }
 function powerHTML(v) {
+  if (v.ult) return v.myRole === 'police' && !v.used.power ? `<button class="btn sec" onclick="arrestUlt()">🚔 ${T('Bắt giữ (1 lần)', 'Arrest (once)')}</button>` : '';
   const r = v.myRole; if (!v.rolesOn || !r) return '';
   if (r === 'detective' ? v.used.lastRound === v.round : v.used.power) return r === 'detective' ? `<div class="en">${T('Bạn đã dùng quyền Thám tử vòng này.', 'You used your Detective power this round.')}</div>` : '';
   if (r === 'innocent') return `<button class="btn sec" onclick="doPower()">${T('Dùng quyền: giả thuyết lần hai', 'Power: second suggestion')}</button>`;
@@ -388,7 +468,7 @@ function playView() {
   const pd = v.pending;
   const strip = v.players.map((p, i) => {
     const turn = p.id === v.turnId && !v.over, ans = pd && pd.disprover === p.id;
-    return `<div class="pp ${turn ? 'turn' : ''} ${p.elim ? 'elim' : ''}"><div class="fr">${turn ? `<em>${T('LƯỢT', 'TURN')}</em>` : ''}${avatar(i, 56)}${p.elim ? '<b class="x">✕</b>' : ''}${ans ? '<b class="bub">…</b>' : ''}<u>${p.cards}</u></div><div class="n"><span class="dot ${p.id === v.me ? '' : (p.status === 'away' ? 'away' : p.connected ? '' : 'off')}"></span>${p.id === v.me ? T('Bạn', 'You') : esc(p.name)}</div></div>`;
+    return `<div class="pp ${turn ? 'turn' : ''} ${p.elim ? 'elim' : ''}"><div class="fr">${turn ? `<em>${T('LƯỢT', 'TURN')}</em>` : ''}${avatar(i, 56)}${p.elim ? '<b class="x">✕</b>' : ''}${ans ? '<b class="bub">…</b>' : ''}<u>${p.cards}</u>${v.ult && v.ult.hard && !p.elim ? `<s class="ac">🃏${p.acts}</s>` : ''}</div><div class="n"><span class="dot ${p.id === v.me ? '' : (p.status === 'away' ? 'away' : p.connected ? '' : 'off')}"></span>${p.id === v.me ? T('Bạn', 'You') : esc(p.name)}</div>${p.elim && v.ult && v.ult.revealed[p.id] && v.ult.revealed[p.id].role ? `<div class="rt">${esc(LN(ROLES[v.ult.revealed[p.id].role]))}</div>` : ''}</div>`;
   }).join('');
   let main = '';
   if (v.over) main += overView(v);
@@ -402,14 +482,18 @@ function playView() {
     const sn = (v.players.find(p => p.id === pd.suggester) || {}).name;
     if (pd.kind === 'reveal') {
       const dn2 = (v.players.find(p => p.id === pd.disprover) || {}).name;
-      if (pd.disprover === v.me) main += `<div class="panel" style="border-color:var(--gold)"><h3>${T(`Thám tử ${esc(sn)} yêu cầu bạn cho xem 1 lá ${CATN[pd.cat][0].toLowerCase()}`, `Detective ${esc(sn)} wants to see 1 ${CATN[pd.cat][1].toLowerCase().replace(/s$/, '')} card`)}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')}</div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div></div>`;
-      else main += `<div class="panel">${T(`Thám tử ${esc(sn)} đang yêu cầu ${esc(dn2)} cho xem 1 lá ${CATN[pd.cat][0].toLowerCase()}…`, `Detective ${esc(sn)} is making ${esc(dn2)} show a ${CATN[pd.cat][1].toLowerCase().replace(/s$/, '')} card…`)}</div>`;
+      if (!pd.cat) {
+        const dn3 = (v.players.find(p => p.id === pd.disprover) || {}).name;
+        main += pd.disprover === v.me ? `<div class="panel" style="border-color:var(--gold)"><h3>${T(`${esc(sn)} thẩm vấn bạn!`, `${esc(sn)} interrogates you!`)}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')} <span class="cd" data-cd="ult.ansLeft" data-int="1"></span></div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div></div>` : `<div class="panel">${T(`${esc(sn)} đang thẩm vấn ${esc(dn3)}…`, `${esc(sn)} is interrogating ${esc(dn3)}…`)}</div>`;
+      } else if (pd.disprover === v.me) main += `<div class="panel" style="border-color:var(--gold)"><h3>${T(`Thám tử ${esc(sn)} yêu cầu bạn cho xem 1 lá ${CATN[pd.cat][0].toLowerCase()}`, `Detective ${esc(sn)} wants to see 1 ${CATN[pd.cat][1].toLowerCase().replace(/s$/, '')} card`)}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')}</div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div></div>`;
+      else if (pd.cat) main += `<div class="panel">${T(`Thám tử ${esc(sn)} đang yêu cầu ${esc(dn2)} cho xem 1 lá ${CATN[pd.cat][0].toLowerCase()}…`, `Detective ${esc(sn)} is making ${esc(dn2)} show a ${CATN[pd.cat][1].toLowerCase().replace(/s$/, '')} card…`)}</div>`;
     } else if (pd.disprover === v.me) {
-      main += `<div class="panel" style="border-color:var(--gold)"><h3>${T(`${esc(sn)} đang hỏi bạn!`, `${esc(sn)} is asking you!`)}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')}</div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div>${pd.canLie ? `<div style="margin-top:10px"><button class="btn sec" onclick="lie()">${T('Giấu lá (Đồng phạm, 1 lần): nói không có', 'Withhold (Accomplice, once): say none')}</button></div>` : ''}</div>`;
+      main += `<div class="panel" style="border-color:var(--gold)"><h3>${T(`${esc(sn)} đang hỏi bạn!`, `${esc(sn)} is asking you!`)} ${v.ult ? '<span class="cd" data-cd="ult.ansLeft" data-int="1"></span>' : ''}</h3><div class="lab">${T('CHỌN 1 LÁ ĐỂ BÍ MẬT CHO XEM', 'PICK 1 CARD TO SHOW SECRETLY')}</div><div class="cards">${pd.match.map(id => cardHTML(id, 0.6, 'pick', `show('${id}')`)).join('')}</div>${v.ult && v.ult.hard && v.myRole !== 'detective' && v.ult.myActs.some(a => atype(a) === 'false') ? `<div style="margin-top:10px"><button class="btn sec" onclick="falseNow()">🤥 ${T('Dùng Lời khai giả: không cho xem gì', 'Use False testimony: show nothing')}</button></div>` : ''}${pd.canLie ? `<div style="margin-top:10px"><button class="btn sec" onclick="lie()">${T('Giấu lá (Đồng phạm, 1 lần): nói không có', 'Withhold (Accomplice, once): say none')}</button></div>` : ''}</div>`;
     }
   }
   let actionBar = '';
-  if (myTurn && !pd) {
+  const uw = v.ult && v.ult.window, ubusy = v.ult && (v.ult.sub !== 'turn' || uw);
+  if (myTurn && !pd && !ubusy) {
     const seize = v.teamMode && v.myRole === 'accomplice', left = v.turn.max - v.turn.suggests;
     if (S.wiz) main = wizHTML(v);
     else {
@@ -423,8 +507,29 @@ function playView() {
   <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, tsc)).join('')}</div>
   ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, tsc)).join('')}</div></div>` : ''}</div></div>`;
   const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><div class="nbtabs"><button class="${S.nbTab !== 'hist' ? 'on' : ''}" onclick="S.nbTab='notes';render()">${T('Manh mối', 'Clues')}</button><button class="${S.nbTab === 'hist' ? 'on' : ''}" onclick="S.nbTab='hist';render()">${T('Lịch sử', 'History')} ${(v.hist || []).length}</button></div><button class="pill" onclick="toggleNB()">✕</button></div>${S.nbTab === 'hist' ? histHTML() : notebookHTML()}</div></aside>` : '';
-  const info = `<span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
-  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="rcorner ${v.round >= v.maxRounds ? 'last' : ''}"><small>${T('VÒNG', 'ROUND')}</small><b>${v.round}<i>/${v.maxRounds}</i></b></div><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;
+  const info = v.ult ? `<span class="pill">Ultima ${v.ult.hard ? T('Khó', 'Hard') : T('Thường', 'Normal')}</span>${v.ult.hard ? `<span class="pill">📚 ${T('Chồng', 'Pile')} ${v.ult.pile}</span>` : ''}${v.turnLeft !== undefined ? `<span class="pill">⏱ <span class="cd" data-cd="turnLeft" data-int="1"></span></span>` : ''}` : `<span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
+  let actTray = '', ovl = '';
+  if (v.ult && v.ult.hard && !v.over) {
+    const mine = v.ult.myActs, can = myTurn && !pd && !ubusy, bs = S.blankSel || [];
+    const pairOk = bs.length === 2 && bs[0].split('_')[1][0] === bs[1].split('_')[1][0];
+    actTray = `<div class="tray atray"><div class="tab">${T('THẺ HÀNH ĐỘNG', 'ACTION CARDS')} (${mine.length})</div><div class="trow"><div class="acts">${mine.length ? mine.map(id => { const t = atype(id), react = t === 'counter' || t === 'false'; return actHTML(id, { cls: react ? 'react' : (can ? 'ok' : 'dim'), sel: bs.includes(id), click: can && !react ? `playAct('${id}')` : '' }); }).join('') : `<div class="en">${T('Bạn chưa có thẻ hành động nào.', 'You have no action cards.')}</div>`}</div></div>${pairOk && can ? `<div style="text-align:center;margin-top:8px"><button class="btn" onclick="playPair()">${T('Chơi cặp Giấy trắng: lấy 1 lá', 'Play the Blank pair: take 1 card')}</button></div>` : ''}</div>`;
+    if (uw) {
+      const top = uw.chain[uw.chain.length - 1], nmx = id => id === v.me ? T('Bạn', 'You') : esc((v.players.find(p => p.id === id) || {}).name), cn = c => c.cards ? T('Giấy trắng ×2', 'Blank ×2') : esc(S.lang === 'en' ? ACT[atype(c.card)].en : ACT[atype(c.card)].vi);
+      const hasC = mine.some(a => atype(a) === 'counter') && top.by !== v.me && !me.elim;
+      ovl += `<div class="cwin"><div class="cwt">${uw.chain.map((c, i) => `<span class="cwc ${i ? 'ctr' : ''}">${nmx(c.by)}: ${cn(c)}</span>`).join(' → ')}</div><div class="cwb"><span class="cd" data-cd="ult.window.left"></span>${hasC ? `<button class="btn red" onclick="counterNow()">✋ ${T('PHẢN ĐỐI!', 'COUNTER!')}</button>` : ''}</div></div>`;
+    }
+    if (v.ult.night) {
+      const n = v.ult.night;
+      ovl += `<div class="ovl night"><div class="ob"><div class="moon">🌙</div><h2>${T('Đêm xuống', 'Night falls')}</h2><div class="cdbig"><span class="cd" data-cd="ult.night.left" data-int="1"></span></div>${n.amDet && !me.elim ? `<div class="lab" style="margin-top:14px">${T('THÁM TỬ: CHỌN 1 NGƯỜI ĐỂ SOI', 'DETECTIVE: PICK 1 PLAYER TO INSPECT')}</div><div class="tgl">${v.players.map((p, i) => p.id !== v.me && !p.elim ? `<button class="btn sec ${n.picked === p.id ? 'sel' : ''}" onclick="nightPick('${p.id}')">${avatar(i, 26)} ${esc(p.name)}</button>` : '').join('')}</div>${n.picked ? `<div class="en">✓ ${T('Đã chọn. Giữ bình tĩnh, đừng để lộ.', 'Chosen. Stay calm, do not give yourself away.')}</div>` : ''}` : `<p>${T('Nhắm mắt lại… Đừng nói gì và đừng cho ai biết bạn là ai.', 'Close your eyes… Stay silent and do not reveal who you are.')}</p>`}</div></div>`;
+    }
+    if (v.ult.vote) {
+      const vt = v.ult.vote;
+      ovl += `<div class="ovl vote"><div class="ob"><h2>🗳️ ${T('Họp làng', 'Village meeting')}</h2><div class="cdbig"><span class="cd" data-cd="ult.vote.left" data-int="1"></span></div><p>${T('Cần hơn một nửa số người còn lại cùng chọn 1 người để giam. Hòa phiếu hoặc bỏ qua: không ai bị giam.', 'More than half of the remaining players must pick the same person to jail them. Tie or abstain: nobody is jailed.')}</p>${vt.can ? `<div class="tgl">${v.players.map((p, i) => p.id !== v.me && !p.elim ? `<button class="btn sec ${vt.mine === p.id ? 'sel' : ''}" onclick="voteFor('${p.id}')">${avatar(i, 26)} ${esc(p.name)}</button>` : '').join('')}<button class="btn sec ${vt.mine === 'abstain' ? 'sel' : ''}" onclick="voteFor('abstain')">${T('Bỏ qua', 'Abstain')}</button></div>` : `<div class="en">${me.elim ? T('Bạn đã bị loại: chỉ được xem.', 'You are out: spectate only.') : T('Đồng phạm chưa được bỏ phiếu trước vòng 5 (tự động Bỏ qua).', 'Accomplices cannot vote before round 5 (auto Abstain).')}</div>`}<div class="en" style="margin-top:10px">${T('Đã bỏ phiếu', 'Voted')}: ${vt.voted.length}/${v.players.filter(p => !p.elim).length}</div></div></div>`;
+    }
+    if (v.ult.lastVote && S.seenVote !== v.ult.lastVote.round + ':' + v.round) { S.seenVote = v.ult.lastVote.round + ':' + v.round; setTimeout(showVoteResult, 50); }
+  }
+  const hint = v.ult && v.ult.hint ? `<div class="hintbar">🕵️ ${T('Gợi ý Nhân chứng: hung thủ là', 'Witness hint: the murderer is')} <b>${v.ult.hint.map(id => cname(id)).join(` ${T('hoặc', 'or')} `)}</b></div>` : '';
+  return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="rcorner ${v.maxRounds && v.round >= v.maxRounds ? 'last' : ''}"><small>${T('VÒNG', 'ROUND')}</small><b>${v.round}${v.maxRounds ? `<i>/${v.maxRounds}</i>` : ''}</b></div><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${hint}${main}${tray}${actTray}${actionBar}</div>${ovl}</div>`;
 }
 function overView(v) {
   const o = v.over, host = v.hostId === v.me, sol = o.solution;

@@ -29,7 +29,9 @@ for (const k of ['s', 'w', 'l']) CARDS[k].forEach(c => (NAMES[c.id] = c));
 const CAT = { s: ['suspect', 'nghi phạm'], w: ['weapon', 'hung khí'], l: ['location', 'địa điểm'] };
 const ROLE_ORDER = ['detective', 'witness', 'accomplice', 'police', 'reporter', 'innocent'];
 const TEAM = { detective: 'good', witness: 'good', police: 'good', reporter: 'good', innocent: 'good', accomplice: 'bad' };
-const MAX_PLAYERS = 6;
+const MAX_PLAYERS = 10;
+const capOf = room => (room.settings && room.settings.game === 'ultima') ? 10 : 6;
+const U = require('./ultima');
 const rooms = {};
 
 const ri = n => crypto.randomInt(n);
@@ -57,8 +59,8 @@ function view(room, me) {
   v.hand = g.hands[me.id];
   v.myRole = g.rolesOn ? g.roles[me.id] : null;
   const secrets = [];
-  if (g.rolesOn && g.roles[me.id] === 'witness') secrets.push(g.solution.l);
-  if (g.rolesOn && g.roles[me.id] === 'accomplice') { secrets.push(g.solution.s); if (CFG.accWeapon) secrets.push(g.solution.w); }
+  if (!g.ult && g.rolesOn && g.roles[me.id] === 'witness') secrets.push(g.solution.l);
+  if (!g.ult && g.rolesOn && g.roles[me.id] === 'accomplice') { secrets.push(g.solution.s); if (CFG.accWeapon) secrets.push(g.solution.w); }
   v.secrets = secrets;
   v.seen = g.seen[me.id] || [];
   v.notes = g.notes[me.id] || [];
@@ -67,8 +69,9 @@ function view(room, me) {
   if (g.pending) {
     const pd = g.pending;
     v.pending = { suggester: pd.suggester, disprover: pd.disprover, s: pd.s, w: pd.w, l: pd.l, kind: pd.kind || 'suggest', cat: pd.cat || null, order: pd.order, pos: pd.pos, passed: pd.h ? pd.h.passed : [] };
-    if (pd.disprover === me.id) { v.pending.match = pd.match; v.pending.canLie = CFG.accWithhold && pd.kind !== 'reveal' && g.rolesOn && g.roles[me.id] === 'accomplice' && !g.used[me.id].lie; }
+    if (pd.disprover === me.id) { v.pending.match = pd.match; v.pending.canLie = !g.ult && CFG.accWithhold && pd.kind !== 'reveal' && g.rolesOn && g.roles[me.id] === 'accomplice' && !g.used[me.id].lie; }
   }
+  if (g.ult) U.view(room, me, v);
   if (room.phase === 'over') v.over = { ...g.over, solution: g.solution, roles: g.rolesOn ? g.roles : null, hands: g.hands };
   return v;
 }
@@ -91,6 +94,7 @@ class Brain {
     v.secrets.forEach(id => { this.known[id[0]] = id; });
     v.notes.slice(this.noteN).forEach(n => Object.values(NAMES).forEach(c => { if (n.vi.includes(c.vi)) this.ruled.add(c.id); }));
     this.noteN = v.notes.length;
+    if (v.ult) Object.values(v.ult.revealed || {}).forEach(r => (r.hand || []).forEach(c => this.ruled.add(c)));
     if (this.aw && !v.pending) {
       if (v.seen.length === this.aw.seenLen) { for (const k of ['s', 'w', 'l']) { const id = this.aw[k]; if (!v.hand.includes(id)) this.known[k] = id; } }
       this.aw = null;
@@ -101,6 +105,7 @@ class Brain {
 }
 function botActor(room) {
   const g = room.g; if (!g || room.phase !== 'play') return null;
+  if (g.ult) return U.botActor(room);
   if (g.pending) { const d = byId(room, g.pending.disprover); return d && d.bot ? d : null; }
   const cur = room.players[g.turn];
   return cur && cur.bot && !g.elim[cur.id] ? cur : null;
@@ -109,6 +114,7 @@ function botStep(room) {
   const p = botActor(room); if (!p) return;
   const g = room.g, v = view(room, p), b = p.brain || (p.brain = new Brain());
   b.update(v);
+  if (g.ult) return U.botStep(room, p, v, b);
   const go = a => act(room, p, a);
   if (g.pending) {
     const pd = v.pending;
@@ -143,9 +149,9 @@ function scheduleBots(room) {
   if (room.botTimer || !botActor(room)) return;
   room.botTimer = setTimeout(() => {
     room.botTimer = null;
-    const g = room.g, before = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase]) : '';
+    const g = room.g, before = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase, g.ult ? [g.ult.sub, g.ult.window && g.ult.window.chain.length, Object.keys(g.ult.botTried).length, g.ult.votes && Object.keys(g.ult.votes.votes).length, g.ult.night && g.ult.night.pick] : 0]) : '';
     try { botStep(room); } catch (e) { console.error('bot error', e); }
-    const after = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase]) : '';
+    const after = g ? JSON.stringify([g.turn, g.round, !!g.pending, g.pending && g.pending.pos, room.log.length, room.phase, g.ult ? [g.ult.sub, g.ult.window && g.ult.window.chain.length, Object.keys(g.ult.botTried).length, g.ult.votes && Object.keys(g.ult.votes.votes).length, g.ult.night && g.ult.night.pick] : 0]) : '';
     room.botFails = before === after ? (room.botFails || 0) + 1 : 0;
     broadcast(room);
     if (room.botFails < 6) scheduleBots(room);
@@ -199,6 +205,7 @@ function findDisprover(room) {
   const g = room.g, pd = g.pending;
   while (pd.pos < pd.order.length) {
     const pid = pd.order[pos(pd)];
+    if (g.ult && g.elim[pid]) { pd.pos++; continue; }
     const match = g.hands[pid].filter(c => c === pd.s || c === pd.w || c === pd.l);
     if (match.length) { pd.disprover = pid; pd.match = match; return; }
     if (pd.h) pd.h.passed.push(pid);
@@ -218,16 +225,20 @@ function act(room, p, a) {
       room.settings.roles = !!a.roles;
       room.settings.mode = a.mode === 'ffa' ? 'ffa' : 'team';
       room.settings.maxRounds = Math.max(4, Math.min(20, parseInt(a.maxRounds, 10) || 8));
+      room.settings.game = a.game === 'ultima' ? 'ultima' : 'classic';
+      room.settings.ulevel = a.ulevel === 'normal' ? 'normal' : 'hard';
+      if (room.players.length > capOf(room)) { room.settings.game = 'ultima'; return E('Có hơn 6 người: chỉ chế độ Ultima chơi được.', 'More than 6 players: only Ultima mode works.'); }
       return null;
     }
     case 'start': {
       if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng mới bắt đầu được.', 'Only the host can start.');
-      if (room.players.length < 2) return E('Cần ít nhất 2 người chơi.', 'Need at least 2 players.');
+      if (room.players.length < (room.settings.game === 'ultima' ? 3 : 2)) return E(room.settings.game === 'ultima' ? 'Ultima cần ít nhất 3 người.' : 'Cần ít nhất 2 người chơi.', room.settings.game === 'ultima' ? 'Ultima needs at least 3 players.' : 'Need at least 2 players.');
+      if (room.players.length > capOf(room)) return E('Quá 6 người: hãy chọn chế độ Ultima.', 'More than 6 players: choose Ultima mode.');
       startGame(room); return null;
     }
     case 'addbot': {
       if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng, trong phòng chờ.', 'Host only, in the lobby.');
-      if (room.players.length >= MAX_PLAYERS) return E('Phòng đã đủ 6 người.', 'Room is full (6).');
+      if (room.players.length >= capOf(room)) return E(`Phòng đã đủ ${capOf(room)} người.`, `Room is full (${capOf(room)}).`);
       let n = room.players.filter(x => x.bot).length + 1, name;
       do { name = `${a.lang === 'en' ? 'Bot' : 'Máy'} ${n++}`; } while (room.players.some(x => x.name.toLowerCase() === name.toLowerCase()));
       room.players.push({ id: tok().slice(0, 8), name, token: tok(), conns: new Set(), bot: true });
@@ -245,6 +256,7 @@ function act(room, p, a) {
     }
   }
   if (room.phase !== 'play') return E('Ván chưa chạy.', 'The game is not running.');
+  if (g.ult) return U.act(room, p, a);
   const meId = p.id, myTurn = room.players[g.turn].id === meId;
 
   if (a.type === 'show' || a.type === 'lie') {
@@ -370,6 +382,7 @@ function startGame(room) {
   room.players.forEach(p => { if (p.bot) p.brain = new Brain(); });
   room.botFails = 0;
   room.players = shuffle(room.players);
+  if (room.settings.game === 'ultima') return U.start(room);
   const n = room.players.length;
   const rolesOn = room.settings.roles && n >= 3;
   const solution = { s: pick(CARDS.s).id, w: pick(CARDS.w).id, l: pick(CARDS.l).id };
@@ -388,6 +401,9 @@ function startGame(room) {
   pub(room, `Ván mới với ${n} người, ${rolesOn ? (room.g.teamMode ? 'chế độ Đội' : 'chế độ Một mình (có vai trò)') : 'không vai trò'}. ${room.players[0].name} đi trước.`, `New game with ${n} players, ${rolesOn ? (room.g.teamMode ? 'Team mode' : 'Free-for-all (with roles)') : 'no roles'}. ${room.players[0].name} goes first.`);
 }
 
+U.init({ CARDS, pub, byId, nameOf, shuffle, pick, ri, E, okCard, nm, finish, findDisprover, act: (room, p, a) => act(room, p, a) });
+setInterval(() => { for (const c in rooms) { const r = rooms[c]; try { if (U.tick(r)) { broadcast(r); r.botFails = 0; scheduleBots(r); } } catch (e) { console.error('tick', e); } } }, 400);
+
 // ---------- HTTP ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4' };
 function readBody(req) { return new Promise(r => { let b = ''; req.on('data', d => { b += d; if (b.length > 1e5) req.destroy(); }); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch (e) { r({}); } }); }); }
@@ -401,7 +417,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/create') {
       const b = await readBody(req), name = cleanName(b.name);
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
-      const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds }, g: null, log: [] };
+      const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds, game: 'classic', ulevel: 'hard' }, g: null, log: [] };
       rooms[room.code] = room;
       const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set() };
       room.players.push(p); room.hostId = p.id;
@@ -412,7 +428,7 @@ const server = http.createServer(async (req, res) => {
       if (!room) return json(res, 404, E('Không tìm thấy phòng.', 'Room not found.'));
       if (room.phase !== 'lobby') return json(res, 400, E('Ván đã bắt đầu.', 'The game already started.'));
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
-      if (room.players.length >= MAX_PLAYERS) return json(res, 400, E('Phòng đã đủ 6 người.', 'Room is full (6).'));
+      if (room.players.length >= capOf(room)) return json(res, 400, E(`Phòng đã đủ ${capOf(room)} người.`, `Room is full (${capOf(room)}).`));
       if (room.players.some(x => x.name.toLowerCase() === name.toLowerCase())) return json(res, 400, E('Tên này đã có người dùng.', 'That name is taken.'));
       const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set() };
       room.players.push(p); broadcast(room);
