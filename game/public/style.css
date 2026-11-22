@@ -341,3 +341,17 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .tgl{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px}.tgl .btn.sel{background:#f0a93a;color:#2a1b12}
 .moon{animation:moonp 3s infinite}@keyframes moonp{50%{transform:scale(1.08);filter:drop-shadow(0 0 18px #f3e3b5)}}
 .tray{overflow:visible!important}.atray{margin-top:26px}
+
+/* flexible notebook grid */
+.nbt{--cw:34px}
+.nbt.ns{--cw:30px}.nbt.nxs{--cw:24px}
+.nbh,.nbr{grid-template-columns:minmax(78px,1fr) repeat(var(--n,6),minmax(18px,var(--cw)))!important}
+.nbt.nxs{font-size:11px}.nbt.nxs .nbh span{font-size:9px}
+.nbh span i{max-width:100%}
+.nbc.auto{opacity:.85}
+.nbc.auto.no{font-style:italic}
+.nbr .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* known cards stay visible in the picker */
+.wc.out{filter:saturate(.55) brightness(.82)}
+.wc.sel{filter:none}
+.wc .yours.known{font-size:12px;top:auto;bottom:14%;transform:translateX(-50%) rotate(-6deg);border-color:#9fb4d8;color:#cfe0ff}

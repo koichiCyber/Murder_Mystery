@@ -201,7 +201,7 @@ function avatar(i, px = 56) {
   const [sk, hr, sh] = AVC[i % AVC.length];
   return `<svg viewBox="0 0 56 56" width="${px}" height="${px}" style="display:block;border-radius:10px;background:#cfe3d6"><rect width="56" height="56" fill="${sh}" fill-opacity=".35"/><path d="M6 56 Q8 40 28 38 Q48 40 50 56Z" fill="${sh}"/><rect x="23" y="32" width="10" height="9" fill="${sk}"/><ellipse cx="28" cy="24" rx="12" ry="13" fill="${sk}"/><path d="M15 22 Q16 8 28 8 Q41 8 41 22 Q36 14 28 15 Q20 14 15 22Z" fill="${hr}"/><circle cx="23" cy="25" r="1.8" fill="#1B1A2E"/><circle cx="33" cy="25" r="1.8" fill="#1B1A2E"/><path d="M24 31 Q28 34 32 31" stroke="#8A3A32" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
 }
-function computeNB() {
+function computeNB(useManual = true) {
   const v = S.v, P = v.players, me = v.me;
   const cells = {}, holder = {}, solved = {};
   const all = [...CARDS.s, ...CARDS.w, ...CARDS.l].map(c => c.id);
@@ -212,6 +212,11 @@ function computeNB() {
   (v.seen || []).forEach(s => { seenSet[s.card + '|' + s.by] = 1; if (!holder[s.card]) setHas(s.card, s.by); });
   if (v.ult) Object.entries(v.ult.revealed || {}).forEach(([pid, r]) => (r.hand || []).forEach(c => { if (!holder[c]) setHas(c, pid); }));
   (v.secrets || []).forEach(c => (solved[c] = true));
+  if (useManual) Object.entries(S.nb || {}).forEach(([k, val]) => { // your own marks feed the deduction
+    const [c, p] = k.split('|'); if (!cells[c] || !P.some(x => x.id === p)) return;
+    if (val === 'v' && !holder[c] && !solved[c] && cells[c][p] !== 'no') setHas(c, p);
+    else if (val === 'x' && !cells[c][p]) cells[c][p] = 'no';
+  });
   const hist = v.hist || [];
   for (let it = 0; it < 6; it++) {
     let ch = false;
@@ -256,20 +261,30 @@ function histHTML() {
   return `<div class="hist">${filt}${list.length ? list.map(row).join('') : `<div class="hempty">${T('Chưa có câu hỏi nào.', 'No questions yet.')}</div>`}</div>`;
 }
 function notebookHTML() {
-  const v = S.v, P = v.players, { cells, holder, solved, seenSet } = computeNB();
+  const v = S.v, P = v.players;
+  { // auto-correct: drop manual marks that contradict hard facts, or that are now implied
+    const base = computeNB(false); let dirty = false;
+    Object.entries(S.nb).forEach(([k, val]) => {
+      const [c, p] = k.split('|'), st = base.cells[c] && base.cells[c][p];
+      if (!base.cells[c] || !P.some(x => x.id === p) || st === 'has' || st === 'no' || (val === 'v' && base.holder[c] && base.holder[c] !== p) || (val === 'v' && base.solved[c])) { delete S.nb[k]; dirty = true; }
+    });
+    if (dirty) localStorage.setItem(nbKey(), JSON.stringify(S.nb));
+  }
+  const base0 = computeNB(false), { cells, holder, solved, seenSet } = computeNB(true);
   const pd = v.pending, wait = {};
   if (pd && pd.kind !== 'reveal') { const rest = [pd.disprover, ...pd.order.slice(pd.pos + 1)].filter(Boolean); [pd.s, pd.w, pd.l].forEach(c => rest.forEach(p => (wait[c + '|' + p] = 1))); }
-  const short = (p, i) => p.id === v.me ? T('Bạn', 'You') : esc(p.name.length > 5 ? p.name.slice(0, 5) : p.name);
-  let h = `<div class="nbt"><div class="nbh" style="grid-template-columns:minmax(0,1fr) repeat(${P.length},34px)"><span></span>${P.map((p, i) => `<span class="${p.elim ? 'el' : ''}">${avatar(i, 26)}<i>${short(p, i)}</i></span>`).join('')}</div>`;
+  const nl = P.length > 7 ? 3 : P.length > 5 ? 4 : 5, short = (p, i) => { if (p.id === v.me) return T('Bạn', 'You'); const m = p.name.match(/^(.*?)[\s#]*(\d+)$/); return esc(m ? m[1].slice(0, Math.max(1, nl - m[2].length)) + m[2] : (p.name.length > nl ? p.name.slice(0, nl) : p.name)); };
+  let h = `<div class="nbt n${P.length > 7 ? 'xs' : P.length > 5 ? 's' : 'm'}" style="--n:${P.length}"><div class="nbh"><span></span>${P.map((p, i) => `<span class="${p.elim ? 'el' : ''}">${avatar(i, 26)}<i>${short(p, i)}</i></span>`).join('')}</div>`;
   for (const k of ['s', 'l', 'w']) {
     h += `<div class="nbg g${k}">${T(CATN[k][0], CATN[k][1])}</div>`;
     for (const c of CARDS[k]) {
       const sol = solved[c.id], held = !!holder[c.id];
-      h += `<div class="nbr ${held ? 'held' : ''} ${sol ? 'sol' : ''}" style="grid-template-columns:minmax(0,1fr) repeat(${P.length},34px)"><span class="nm">${sol ? '★ ' : ''}${esc(LN(c))}</span>` + P.map(p => {
-        const st = cells[c.id][p.id], man = S.nb[c.id + '|' + p.id];
+      h += `<div class="nbr ${held ? 'held' : ''} ${sol ? 'sol' : ''}"><span class="nm">${sol ? '★ ' : ''}${esc(LN(c))}</span>` + P.map(p => {
+        const st = cells[c.id][p.id], man = S.nb[c.id + '|' + p.id], auto = st && !base0.cells[c.id][p.id];
         let sym = '', cl = '';
-        if (st === 'has') { sym = seenSet[c.id + '|' + p.id] ? '🔍' : '✓'; cl = 'has' + (p.id === v.me ? ' me' : ''); } else if (st === 'no') { sym = '✕'; cl = 'no'; } else if (st === 'maybe') { sym = '?'; cl = 'maybe'; }
-        else if (man === 'x') { sym = '✕'; cl = 'no man'; } else if (man === 'q') { sym = '?'; cl = 'maybe man'; } else if (man === 'v') { sym = '✓'; cl = 'has man'; }
+        if (man === 'v' && st === 'has') { sym = '✓'; cl = 'has man'; } else if (man === 'x' && st === 'no') { sym = '✕'; cl = 'no man'; }
+        else if (st === 'has') { sym = seenSet[c.id + '|' + p.id] ? '🔍' : '✓'; cl = 'has' + (p.id === v.me ? ' me' : '') + (auto ? ' auto' : ''); } else if (st === 'no') { sym = '✕'; cl = 'no' + (auto ? ' auto' : ''); } else if (st === 'maybe') { sym = '?'; cl = 'maybe'; }
+        else if (man === 'q') { sym = '?'; cl = 'maybe man'; }
         return `<button class="nbc ${cl} ${wait[c.id + '|' + p.id] ? 'wait' : ''}" onclick="nbCycle('${c.id}|${p.id}')">${sym}</button>`;
       }).join('') + '</div>';
     }
@@ -292,12 +307,12 @@ function wizOpen(mode) { S.wiz = { mode, step: 's' }; S.sel = { s: null, w: null
 function wizClose() { S.wiz = null; S.sel = { s: null, w: null, l: null }; render(); }
 function wizStep(k) { if (S.wiz) { S.wiz.step = k; render(); } }
 function wizGo() { const m = S.wiz.mode; if (m === 'suggest') { doSuggest(); } else doAccuse(); }
-function outSet() { // cards ruled out by notebook / hand
+function outSet() { // cards whose holder is already known (cannot be the answer)
   const v = S.v, nb = computeNB(), out = new Set(v.hand);
   Object.keys(nb.holder).forEach(c => out.add(c));
-  Object.keys(S.nb).forEach(c => { if (S.nb[c] === 'x') out.add(c); });
   return out;
 }
+function holderName(id) { const h = computeNB().holder[id], p = S.v.players.find(x => x.id === h); return p ? (p.id === S.v.me ? T('Bạn', 'You') : p.name) : '?'; }
 function wizHTML(v) {
   const w = S.wiz, out = outSet(), mine = new Set(v.hand);
   const ord = ['s', 'l', 'w'], Q = { s: ['Ai?', 'Who?'], l: ['Ở đâu?', 'Where?'], w: ['Bằng gì?', 'With what?'] };
@@ -306,11 +321,11 @@ function wizHTML(v) {
     return `<div class="slot ${cur ? 'cur' : ''} ${k}" onclick="wizStep('${k}')"><div class="sh">${T(CATN[k][0].toUpperCase(), CATN[k][1].toUpperCase())}</div><div class="sb">${c ? `<div class="sart">${c.svg}</div>` : '<span class="q">?</span>'}</div><div class="sn">${c ? esc(LN(c)) : T(Q[k][0], Q[k][1])}</div>${c ? '<i class="ok">✓</i>' : ''}</div>`; }).join('');
   const k = w.step, left = CARDS[k].filter(c => !out.has(c.id)).length;
   const lab = { s: [T('Chọn nghi phạm', 'Choose the suspect'), T('người', 'suspects')], l: [T('Chọn địa điểm', 'Choose the location'), T('nơi', 'locations')], w: [T('Chọn hung khí', 'Choose the weapon'), T('món', 'weapons')] }[k];
-  const grid = CARDS[k].map(c => `<div class="wc ${S.sel[k] === c.id ? 'sel' : ''} ${out.has(c.id) ? 'out' : ''}" onclick="pick('${k}','${c.id}')">${cardHTML(c.id, 0.62)}${mine.has(c.id) ? `<b class="yours">${T('CỦA BẠN', 'YOURS')}</b>` : ''}${S.sel[k] === c.id ? '<i class="tick">✓</i>' : ''}</div>`).join('');
+  const grid = CARDS[k].map(c => `<div class="wc ${S.sel[k] === c.id ? 'sel' : ''} ${out.has(c.id) ? 'out' : ''}" onclick="pick('${k}','${c.id}')">${cardHTML(c.id, 0.62)}${mine.has(c.id) ? `<b class="yours">${T('CỦA BẠN', 'YOURS')}</b>` : out.has(c.id) ? `<b class="yours known">${T('ĐÃ BIẾT', 'KNOWN')}: ${esc(holderName(c.id))}</b>` : ''}${S.sel[k] === c.id ? '<i class="tick">✓</i>' : ''}</div>`).join('');
   const seize = v.teamMode && v.myRole === 'accomplice', acc = w.mode === 'accuse';
   const go = acc ? (seize ? T('Chiếm đáp án', 'Seize the answer') : T('Buộc tội', 'Accuse')) : T('Đưa ra giả thuyết', 'Suggest');
   return `<div class="wiz"><div class="wt">${acc ? (seize ? T('Chiếm đáp án', 'Seize the answer') : T('Buộc tội', 'Accuse')) : T('Giả thuyết', 'Suggestion')}</div><div class="slots">${slots}</div>
-  <div class="wp"><b>${lab[0]}</b>, ${T(`còn ${left} ${lab[1]} chưa bị loại`, `${left} not yet ruled out`)}</div><div class="wgrid">${grid}</div>
+  <div class="wp"><b>${lab[0]}</b>, ${T(`còn ${left} ${lab[1]} chưa bị loại (lá đã biết vẫn hiện, làm mờ)`, `${left} not yet ruled out (known cards stay visible, dimmed)`)}</div><div class="wgrid">${grid}</div>
   <div class="wbar"><button class="btn sec" onclick="wizClose()">${T('Quay lại', 'Back')}</button><button class="btn ${acc ? 'red' : ''}" ${selOK() ? '' : 'disabled'} onclick="wizGo()">${go}</button></div></div>`;
 }
 function selOK() { return S.sel.s && S.sel.w && S.sel.l; }
