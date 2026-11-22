@@ -355,3 +355,10 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .wc.out{filter:saturate(.55) brightness(.82)}
 .wc.sel{filter:none}
 .wc .yours.known{font-size:12px;top:auto;bottom:14%;transform:translateX(-50%) rotate(-6deg);border-color:#9fb4d8;color:#cfe0ff}
+
+/* card theme picker */
+.themes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px;margin-bottom:12px}
+.th{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1.5px solid #ffffff30;border-radius:10px;cursor:pointer;background:#0003;font-size:13px}
+.th input{display:none}.th .ti{font-size:20px}
+.th.on{border-color:#e3b94e;background:#e3b94e22;box-shadow:0 0 0 1px #e3b94e55}
+.th:hover{border-color:#e3b94e99}

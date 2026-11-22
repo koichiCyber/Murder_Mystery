@@ -43,8 +43,11 @@ Drop .mp3/.ogg/.wav files into game/public/music/ (see README.txt there for CC0 
 Bỏ file nhạc vào game/public/music/; nút 🎵 hiện trên thanh trên.
 
 ## Ultima mode (Luật v2) / Chế độ Ultima
-Pick **Ultima** in the lobby (3–10 players, bots allowed). Levels: **Hard** (≥6 players: roles Detective/Forensic/Police/Witness/Villager/Accomplice, 9 action cards, night phase, village vote, evidence pile, 90 s turns) and **Normal** (Clue only, last one standing). Rules are in the in-game Rules button. Timers can be tuned with env vars: `ULT_TURN`, `ULT_WINDOW` (counter window), `ULT_NIGHT`, `ULT_VOTE`, `ULT_ANSWER` (milliseconds). Card counts are a starting point and still need real play-testing / balancing.
-Chọn **Ultima** trong phòng chờ (3–10 người, có thể thêm máy). Chi tiết luật xem nút Luật trong game.
+Pick **Ultima** in the lobby (3–12 players, bots allowed). Levels: **Hard** (≥6 players: roles Detective/Forensic/Police/Witness/Villager/Accomplice, 9 action cards, night phase, village vote, evidence pile, 90 s turns) and **Normal** (Clue only, last one standing). Rules are in the in-game Rules button. Timers can be tuned with env vars: `ULT_TURN`, `ULT_WINDOW` (counter window), `ULT_NIGHT`, `ULT_VOTE`, `ULT_ANSWER` (milliseconds). Card counts are a starting point and still need real play-testing / balancing.
+Chọn **Ultima** trong phòng chờ (3–12 người, có thể thêm máy). Chi tiết luật xem nút Luật trong game.
 
 
 Classic mode timer: each turn lasts 45 seconds (env CLASSIC_TURN in ms); the clock pauses while a suggestion is being answered and the turn passes automatically at zero.
+
+
+**Card themes / Bộ bài chủ đề:** pick in the lobby (host): Classic (painted), Modern day, Showbiz stars (fictional celebrities), Space station. Data in `game/public/themes.json`, regenerate with `python3 cards/build_themes.py`. Art is generated emoji-and-decor SVG; to use painted art, replace a card's `svg` with an `<img>` in themes.json.

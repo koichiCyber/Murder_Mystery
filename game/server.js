@@ -29,8 +29,8 @@ for (const k of ['s', 'w', 'l']) CARDS[k].forEach(c => (NAMES[c.id] = c));
 const CAT = { s: ['suspect', 'nghi phạm'], w: ['weapon', 'hung khí'], l: ['location', 'địa điểm'] };
 const ROLE_ORDER = ['detective', 'witness', 'accomplice', 'police', 'reporter', 'innocent'];
 const TEAM = { detective: 'good', witness: 'good', police: 'good', reporter: 'good', innocent: 'good', accomplice: 'bad' };
-const MAX_PLAYERS = 10;
-const capOf = room => (room.settings && room.settings.game === 'ultima') ? 10 : 6;
+const MAX_PLAYERS = 12;
+const capOf = room => (room.settings && room.settings.game === 'ultima') ? 12 : 6;
 const U = require('./ultima');
 const rooms = {};
 
@@ -40,7 +40,9 @@ function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { co
 const code4 = () => { const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let c; do { c = Array.from({ length: 4 }, () => L[ri(L.length)]).join(''); } while (rooms[c]); return c; };
 const tok = () => crypto.randomBytes(12).toString('hex');
 const E = (vi, en) => ({ error: { vi, en } });
-const nm = id => NAMES[id];
+let THEMES = { themes: {} };
+try { THEMES = JSON.parse(fs.readFileSync(path.join(PUB, 'themes.json'), 'utf8')); } catch (e) { console.error('themes.json missing'); }
+const nm = (id, room) => { const t = room && room.settings && THEMES.themes[room.settings.theme]; return (t && t.cards[id]) || NAMES[id]; };
 const TURN_C = parseInt(process.env.CLASSIC_TURN, 10) || 45000;
 
 function pub(room, vi, en) { room.log.push({ vi, en }); if (room.log.length > 300) room.log.shift(); }
@@ -94,7 +96,7 @@ class Brain {
   update(v) {
     v.hand.forEach(c => this.ruled.add(c)); v.seen.forEach(x => this.ruled.add(x.card));
     v.secrets.forEach(id => { this.known[id[0]] = id; });
-    v.notes.slice(this.noteN).forEach(n => Object.values(NAMES).forEach(c => { if (n.vi.includes(c.vi)) this.ruled.add(c.id); }));
+    v.notes.slice(this.noteN).forEach(n => [...Object.values(NAMES), ...Object.values(THEMES.themes).flatMap(t => Object.entries(t.cards).map(([id, c]) => ({ id, vi: c.vi })))].forEach(c => { if (n.vi.includes(c.vi)) this.ruled.add(c.id); }));
     this.noteN = v.notes.length;
     if (v.ult) Object.values(v.ult.revealed || {}).forEach(r => (r.hand || []).forEach(c => this.ruled.add(c)));
     if (this.aw && !v.pending) {
@@ -229,6 +231,7 @@ function act(room, p, a) {
       room.settings.maxRounds = Math.max(4, Math.min(20, parseInt(a.maxRounds, 10) || 8));
       room.settings.game = a.game === 'ultima' ? 'ultima' : 'classic';
       room.settings.ulevel = a.ulevel === 'normal' ? 'normal' : 'hard';
+      room.settings.theme = THEMES.themes[a.theme] ? a.theme : 'classic';
       if (room.players.length > capOf(room)) { room.settings.game = 'ultima'; return E('Có hơn 6 người: chỉ chế độ Ultima chơi được.', 'More than 6 players: only Ultima mode works.'); }
       return null;
     }
@@ -289,7 +292,7 @@ function act(room, p, a) {
       if (g.t.suggests >= g.t.max) return E('Bạn đã hết lượt đưa giả thuyết.', 'No suggestions left this turn.');
       if (!okCard('s', a.s) || !okCard('w', a.w) || !okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       g.t.suggests++;
-      pub(room, `${nameOf(room, meId)} đưa ra giả thuyết: ${nm(a.s).vi} · ${nm(a.w).vi} · ${nm(a.l).vi}`, `${nameOf(room, meId)} suggests: ${nm(a.s).en} · ${nm(a.w).en} · ${nm(a.l).en}`);
+      pub(room, `${nameOf(room, meId)} đưa ra giả thuyết: ${nm(a.s, room).vi} · ${nm(a.w, room).vi} · ${nm(a.l, room).vi}`, `${nameOf(room, meId)} suggests: ${nm(a.s, room).en} · ${nm(a.w, room).en} · ${nm(a.l, room).en}`);
       const n = room.players.length, i0 = room.players.findIndex(x => x.id === meId);
       const order = []; for (let k = 1; k < n; k++) order.push(room.players[(i0 + k) % n].id);
       const h = { n: (g.hist = g.hist || []).length + 1, round: g.round, by: meId, s: a.s, w: a.w, l: a.l, passed: [], ans: null, done: false };
@@ -303,7 +306,7 @@ function act(room, p, a) {
       if (g.rolesOn && g.roles[meId] === 'accomplice') { const from = g.teamMode ? CFG.accSeizeTeam : CFG.accSeizeFfa; if (g.round < from) return E(`Đồng phạm chỉ được chiếm đáp án từ vòng ${from}.`, `The Accomplice can only seize the answer from round ${from}.`); }
       if (!okCard('s', a.s) || !okCard('w', a.w) || !okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       const ok = a.s === g.solution.s && a.w === g.solution.w && a.l === g.solution.l;
-      pub(room, `${nameOf(room, meId)} buộc tội: ${nm(a.s).vi} · ${nm(a.w).vi} · ${nm(a.l).vi}`, `${nameOf(room, meId)} accuses: ${nm(a.s).en} · ${nm(a.w).en} · ${nm(a.l).en}`);
+      pub(room, `${nameOf(room, meId)} buộc tội: ${nm(a.s, room).vi} · ${nm(a.w, room).vi} · ${nm(a.l, room).vi}`, `${nameOf(room, meId)} accuses: ${nm(a.s, room).en} · ${nm(a.w, room).en} · ${nm(a.l, room).en}`);
       if (ok) {
         if (g.teamMode && g.roles[meId] === 'accomplice') finish(room, 'bad', [meId], `${nameOf(room, meId)} là Đồng phạm và đã chiếm được đáp án! Phe Ác thắng!`, `${nameOf(room, meId)} is the Accomplice and seized the answer! The Bad team wins!`);
         else if (g.teamMode) finish(room, 'good', room.players.filter(x => TEAM[g.roles[x.id]] === 'good').map(x => x.id), `${nameOf(room, meId)} buộc tội đúng! Phe Thiện thắng!`, `${nameOf(room, meId)} is right! The Good team wins!`);
@@ -369,7 +372,7 @@ function act(room, p, a) {
         u.power = true;
         const note = role === 'reporter'
           ? { vi: `${t.name} có ${cards.length} lá ${c[1]}.`, en: `${t.name} holds ${cards.length} ${c[0]} card(s).` }
-          : { vi: `${t.name} có ${cards.length ? 'các lá ' + c[1] + ': ' + cards.map(x => nm(x).vi).join(', ') : 'không lá ' + c[1] + ' nào'}.`, en: `${t.name} holds ${cards.length ? cards.map(x => nm(x).en).join(', ') : 'no ' + c[0] + ' cards'}.` };
+          : { vi: `${t.name} có ${cards.length ? 'các lá ' + c[1] + ': ' + cards.map(x => nm(x, room).vi).join(', ') : 'không lá ' + c[1] + ' nào'}.`, en: `${t.name} holds ${cards.length ? cards.map(x => nm(x, room).en).join(', ') : 'no ' + c[0] + ' cards'}.` };
         (g.notes[meId] = g.notes[meId] || []).push(note);
         pub(room, `${nameOf(room, meId)} (${role === 'reporter' ? 'Phóng viên' : 'Cảnh sát'}) hỏi ${t.name} về các lá ${c[1]}.`, `${nameOf(room, meId)} (${role === 'reporter' ? 'Reporter' : 'Police'}) asks ${t.name} about ${c[0]} cards.`);
         return null;
@@ -430,7 +433,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/create') {
       const b = await readBody(req), name = cleanName(b.name);
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
-      const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds, game: 'classic', ulevel: 'hard' }, g: null, log: [] };
+      const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds, game: 'classic', ulevel: 'hard', theme: 'classic' }, g: null, log: [] };
       rooms[room.code] = room;
       const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set() };
       room.players.push(p); room.hostId = p.id;

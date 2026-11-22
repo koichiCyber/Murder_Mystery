@@ -1,5 +1,5 @@
 // Ultima mode (Luật v2) - separate game mode. Self-contained engine; server.js delegates to it when g.ult is set.
-// Levels: 'normal' = Clue only (3-10 players, last one standing). 'hard' (>=6 players) = roles, action cards, night, village vote.
+// Levels: 'normal' = Clue only (3-12 players, last one standing). 'hard' (>=6 players) = roles, action cards, night, village vote.
 const envN = (k, d) => (process.env[k] !== undefined && process.env[k] !== '' && !isNaN(+process.env[k])) ? +process.env[k] : d;
 const WINDOW = envN('ULT_WINDOW', 5000), NIGHT = envN('ULT_NIGHT', 35000), VOTE = envN('ULT_VOTE', 60000), TURN = envN('ULT_TURN', 90000), TURN_N = envN('ULT_TURN_NORMAL', 45000), ANSWER = envN('ULT_ANSWER', 60000);
 const ACTS = {
@@ -21,6 +21,8 @@ function roleList(n) {
   if (n >= 8) r.push('villager');
   if (n >= 9) r.push('police');
   if (n >= 10) r.push('villager');
+  if (n >= 11) r.push('villager');
+  if (n >= 12) r.push('accomplice');
   return r;
 }
 function buildDeck(n) {
@@ -69,7 +71,7 @@ function resolveNight(room) {
   if (det && !g.elim[det.id] && u.night.pick && !g.elim[u.night.pick]) {
     const t = X.byId(room, u.night.pick), sus = g.hands[t.id].filter(c => c[0] === 's');
     (g.notes[det.id] = g.notes[det.id] || []).push(sus.length
-      ? { vi: `${t.name} giữ các nghi phạm: ${sus.map(c => X.nm(c).vi).join(', ')} (không phải hung thủ).`, en: `${t.name} holds suspects: ${sus.map(c => X.nm(c).en).join(', ')} (not the murderer).` }
+      ? { vi: `${t.name} giữ các nghi phạm: ${sus.map(c => X.nm(c, room).vi).join(', ')} (không phải hung thủ).`, en: `${t.name} holds suspects: ${sus.map(c => X.nm(c, room).en).join(', ')} (not the murderer).` }
       : { vi: `${t.name} không giữ nghi phạm nào.`, en: `${t.name} holds no suspect cards.` });
   }
   u.night = null; X.pub(room, '☀️ Trời sáng.', '☀️ Day breaks.');
@@ -310,7 +312,7 @@ function actInner(room, p, a) {
       if (g.t.suggests >= g.t.max) return E('Bạn đã hết lượt đưa giả thuyết.', 'No suggestions left this turn.');
       if (!X.okCard('s', a.s) || !X.okCard('w', a.w) || !X.okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       g.t.suggests++;
-      X.pub(room, `${X.nameOf(room, me)} đưa ra giả thuyết: ${X.nm(a.s).vi} · ${X.nm(a.w).vi} · ${X.nm(a.l).vi}`, `${X.nameOf(room, me)} suggests: ${X.nm(a.s).en} · ${X.nm(a.w).en} · ${X.nm(a.l).en}`);
+      X.pub(room, `${X.nameOf(room, me)} đưa ra giả thuyết: ${X.nm(a.s, room).vi} · ${X.nm(a.w, room).vi} · ${X.nm(a.l, room).vi}`, `${X.nameOf(room, me)} suggests: ${X.nm(a.s, room).en} · ${X.nm(a.w, room).en} · ${X.nm(a.l, room).en}`);
       const n = room.players.length, i0 = room.players.findIndex(x => x.id === me), order = [];
       for (let k = 1; k < n; k++) order.push(room.players[(i0 + k) % n].id);
       const h = { n: (g.hist = g.hist || []).length + 1, round: g.round, by: me, s: a.s, w: a.w, l: a.l, passed: [], ans: null, done: false };
@@ -326,7 +328,7 @@ function actInner(room, p, a) {
       if (role === 'accomplice' && g.round < 3) return E('Đồng phạm chỉ được chiếm đáp án từ vòng 3.', 'The Accomplice can only seize the answer from round 3.');
       if (!X.okCard('s', a.s) || !X.okCard('w', a.w) || !X.okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       const ok = a.s === g.solution.s && a.w === g.solution.w && a.l === g.solution.l;
-      X.pub(room, `${X.nameOf(room, me)} buộc tội: ${X.nm(a.s).vi} · ${X.nm(a.w).vi} · ${X.nm(a.l).vi}`, `${X.nameOf(room, me)} accuses: ${X.nm(a.s).en} · ${X.nm(a.w).en} · ${X.nm(a.l).en}`);
+      X.pub(room, `${X.nameOf(room, me)} buộc tội: ${X.nm(a.s, room).vi} · ${X.nm(a.w, room).vi} · ${X.nm(a.l, room).vi}`, `${X.nameOf(room, me)} accuses: ${X.nm(a.s, room).en} · ${X.nm(a.w, room).en} · ${X.nm(a.l, room).en}`);
       if (ok) {
         if (!u.hard) X.finish(room, 'solo', [me], `${X.nameOf(room, me)} buộc tội đúng và thắng!`, `${X.nameOf(room, me)} is right and wins!`);
         else if (role === 'accomplice') X.finish(room, 'bad', room.players.filter(x => TEAMS[g.roles[x.id]] === 'bad').map(x => x.id), `${X.nameOf(room, me)} là Đồng phạm và đã chiếm được đáp án! Phe Ác thắng!`, `${X.nameOf(room, me)} is an Accomplice and seized the answer! The Bad team wins!`);

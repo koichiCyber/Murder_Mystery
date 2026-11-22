@@ -21,7 +21,7 @@ const CATN = { s: ['Nghi phạm', 'Suspects'], w: ['Hung khí', 'Weapons'], l: [
 
 function cardHTML(id, scale = 1, cls = '', onclick = '') {
   const c = BY[id], k = KIND[id[0]];
-  return `<div class="cw ${cls}" data-cid="${id}" ${onclick ? `onclick="${onclick}"` : ''} style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:${k.c};transform:scale(${scale})"><div class="hd"><span>${KA[id[0]][S.lang === 'en' ? 1 : 0]}</span></div><div class="art">${c.svg}</div><div class="bd"><div class="nm">${esc(LN(c))}</div><div class="rule"></div><div class="tg">${esc(S.lang === 'en' ? (TAG_EN[c.tag] || '') : c.tag)}</div></div></div></div>`;
+  return `<div class="cw ${cls}" data-cid="${id}" ${onclick ? `onclick="${onclick}"` : ''} style="width:${232 * scale}px;height:${325 * scale}px"><div class="card" style="--c:${k.c};transform:scale(${scale})"><div class="hd"><span>${KA[id[0]][S.lang === 'en' ? 1 : 0]}</span></div><div class="art">${c.svg}</div><div class="bd"><div class="nm">${esc(LN(c))}</div><div class="rule"></div><div class="tg">${esc(S.lang === 'en' ? (c.tag_en || TAG_EN[c.tag] || '') : c.tag)}</div></div></div></div>`;
 }
 function roleHTML(rid, scale = 1, teamMode = true) {
   const r = ROLES[rid]; if (!r) return '';
@@ -196,7 +196,7 @@ function showRules() {
 function toggleNB() { S.nbOpen = !S.nbOpen; render(); }
 
 // ---------- notebook ----------
-const AVC = [['#F2C9A0', '#2A2A33', '#2E9D7B'], ['#E8B792', '#7A3A1C', '#C23B3B'], ['#F6D3B3', '#E3B94E', '#23366B'], ['#C98F63', '#1B1A2E', '#8B5CF6'], ['#EBC19C', '#B3401E', '#E3B94E'], ['#D9A073', '#3A2A20', '#0EA5A5']];
+const AVC = [['#F2C9A0', '#2A2A33', '#2E9D7B'], ['#E8B792', '#7A3A1C', '#C23B3B'], ['#F6D3B3', '#E3B94E', '#23366B'], ['#C98F63', '#1B1A2E', '#8B5CF6'], ['#EBC19C', '#B3401E', '#E3B94E'], ['#D9A073', '#3A2A20', '#0EA5A5'], ['#F0C8A8', '#8A5A2B', '#D97706'], ['#B87B52', '#111827', '#DB2777'], ['#E9BE98', '#5B3A29', '#4D7C0F'], ['#CF9468', '#C9C2B8', '#1D4ED8'], ['#F4D2B6', '#7C2D12', '#0F766E'], ['#C08560', '#2B2B2B', '#9333EA']];
 function avatar(i, px = 56) {
   const [sk, hr, sh] = AVC[i % AVC.length];
   return `<svg viewBox="0 0 56 56" width="${px}" height="${px}" style="display:block;border-radius:10px;background:#cfe3d6"><rect width="56" height="56" fill="${sh}" fill-opacity=".35"/><path d="M6 56 Q8 40 28 38 Q48 40 50 56Z" fill="${sh}"/><rect x="23" y="32" width="10" height="9" fill="${sk}"/><ellipse cx="28" cy="24" rx="12" ry="13" fill="${sk}"/><path d="M15 22 Q16 8 28 8 Q41 8 41 22 Q36 14 28 15 Q20 14 15 22Z" fill="${hr}"/><circle cx="23" cy="25" r="1.8" fill="#1B1A2E"/><circle cx="33" cy="25" r="1.8" fill="#1B1A2E"/><path d="M24 31 Q28 34 32 31" stroke="#8A3A32" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>`;
@@ -371,9 +371,16 @@ function copyLink() {
   const u = `${location.origin}/?room=${S.v.code}`;
   (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast('Đã chép liên kết.', 'Link copied.')).catch(() => prompt('Link:', u));
 }
+function applyTheme(id) {
+  const t = THEMES[id], keep = ['id'];
+  for (const cid in BASEC) { const o = BY[cid]; if (!o) continue; Object.keys(o).forEach(k => { if (!keep.includes(k)) delete o[k]; }); Object.assign(o, BASEC[cid]); if (t && t.cards[cid]) Object.assign(o, t.cards[cid]); }
+  S.themeApplied = id;
+}
+function themeNow() { return (S.v && S.v.settings && THEMES[S.v.settings.theme]) ? S.v.settings.theme : 'classic'; }
 function setSettings() {
   const m = document.querySelector('input[name=mode]:checked'), g = document.querySelector('input[name=game]:checked'), l = document.querySelector('input[name=ulevel]:checked');
-  api('settings', { roles: $('#roles') ? $('#roles').checked : true, mode: m ? m.value : 'team', maxRounds: $('#rounds') ? $('#rounds').value : 8, game: g ? g.value : 'classic', ulevel: l ? l.value : 'hard' });
+  const th = document.querySelector('input[name=theme]:checked');
+  api('settings', { theme: th ? th.value : 'classic', roles: $('#roles') ? $('#roles').checked : true, mode: m ? m.value : 'team', maxRounds: $('#rounds') ? $('#rounds').value : 8, game: g ? g.value : 'classic', ulevel: l ? l.value : 'hard' });
 }
 
 // ---------- views ----------
@@ -410,9 +417,10 @@ function lobbyView() {
   const pls = v.players.map(p => `<div class="pl"><span class="dot ${p.connected ? '' : 'off'}"></span><span class="n">${esc(p.name)}</span>${p.id === v.hostId ? ` <span class="s">★ ${T('chủ phòng', 'host')}</span>` : ''}${p.bot ? ` <span class="s">🤖</span>${host ? ` <a href="#" style="margin-left:6px" onclick="api('removebot',{id:'${p.id}'});return false">✕</a>` : ''}` : ''}</div>`).join('');
   const rolesOk = v.players.length >= 3;
   return `<div class="wrap">${topBar()}<div class="panel" style="text-align:center"><div class="lab">${T('MÃ PHÒNG', 'ROOM CODE')}</div><div class="big">${esc(v.code)}</div><div style="margin-top:8px"><button class="btn sec" onclick="copyLink()">${T('Chép liên kết mời bạn', 'Copy invite link')}</button></div></div>
-  <div class="panel"><h3>${T('Người chơi', 'Players')} (${v.players.length}/${v.settings.game === 'ultima' ? 10 : 6})</h3><div class="strip">${pls}</div>${host && v.players.length < (v.settings.game === 'ultima' ? 10 : 6) ? `<div style="margin-top:10px"><button class="btn sec" onclick="api('addbot',{lang:S.lang})">🤖 ${T('Thêm máy', 'Add bot')}</button></div>` : ''}</div>
+  <div class="panel"><h3>${T('Người chơi', 'Players')} (${v.players.length}/${v.settings.game === 'ultima' ? 12 : 6})</h3><div class="strip">${pls}</div>${host && v.players.length < (v.settings.game === 'ultima' ? 12 : 6) ? `<div style="margin-top:10px"><button class="btn sec" onclick="api('addbot',{lang:S.lang})">🤖 ${T('Thêm máy', 'Add bot')}</button></div>` : ''}</div>
   <div class="panel"><h3>${T('Cài đặt', 'Settings')}</h3>
-  ${host ? `<div class="lab">${T('LOẠI GAME', 'GAME')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="game" value="classic" ${v.settings.game !== 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Cổ điển (2–6 người)', 'Classic (2–6 players)')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="game" value="ultima" ${v.settings.game === 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span><b>Ultima</b> ${T('(Luật v2, 3–10 người)', '(Rules v2, 3–10 players)')}</span></label>
+  ${host ? `<div class="lab">${T('BỘ BÀI (CHỦ ĐỀ)', 'CARD THEME')}</div><div class="themes">${[['classic', { icon: '🏮', vi: 'Cổ điển (tranh vẽ)', en: 'Classic (painted)' }], ...Object.entries(THEMES)].map(([id, t]) => `<label class="th ${themeNow() === id ? 'on' : ''}"><input type="radio" name="theme" value="${id}" ${themeNow() === id ? 'checked' : ''} onchange="setSettings()"><span class="ti">${t.icon}</span><span>${T(t.vi, t.en)}</span></label>`).join('')}</div>` : `<div class="en" style="margin-bottom:8px">${T('Bộ bài', 'Card theme')}: <b>${themeNow() === 'classic' ? T('Cổ điển', 'Classic') : (THEMES[themeNow()] ? T(THEMES[themeNow()].vi, THEMES[themeNow()].en) : '')}</b></div>`}
+  ${host ? `<div class="lab">${T('LOẠI GAME', 'GAME')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="game" value="classic" ${v.settings.game !== 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Cổ điển (2–6 người)', 'Classic (2–6 players)')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="game" value="ultima" ${v.settings.game === 'ultima' ? 'checked' : ''} onchange="setSettings()"> <span><b>Ultima</b> ${T('(Luật v2, 3–12 người)', '(Rules v2, 3–12 players)')}</span></label>
   ${v.settings.game === 'ultima' ? `<div class="lab">${T('MỨC CHƠI', 'LEVEL')}</div><label class="row" style="margin-bottom:6px"><input type="radio" name="ulevel" value="hard" ${v.settings.ulevel !== 'normal' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Khó: vai trò, thẻ hành động, ban đêm, họp làng (cần ≥6 người)', 'Hard: roles, action cards, night, village vote (needs 6+ players)')}</span></label><label class="row" style="margin-bottom:12px"><input type="radio" name="ulevel" value="normal" ${v.settings.ulevel === 'normal' ? 'checked' : ''} onchange="setSettings()"> <span>${T('Bình thường: chỉ Hồ Sơ Mật (Clue), người cuối cùng thắng', 'Normal: Clue only, last one standing wins')}</span></label>
   ${v.settings.ulevel === 'normal' || v.players.length < 6 ? `<label class="row">${T('Số vòng tối đa', 'Round limit')}: <input type="number" id="rounds" min="4" max="20" value="${v.settings.maxRounds}" style="width:90px" onchange="setSettings()"></label>` : ''}
   ${v.settings.ulevel !== 'normal' && v.players.length < 6 ? `<div class="en" style="margin-top:8px">${T('Dưới 6 người: tự chơi như mức Bình thường.', 'Under 6 players: plays as Normal.')}</div>` : ''}
@@ -559,6 +567,7 @@ function overView(v) {
   return h;
 }
 function render() {
+  if (S.v && BASEC.s0 && S.themeApplied !== themeNow()) applyTheme(themeNow());
   const app = $('#app');
   const focus = document.activeElement && document.activeElement.id;
   if (S.session && S.v && S.v.phase === 'play') nbLoad();
@@ -570,7 +579,9 @@ function render() {
   if (focus && $('#' + focus)) $('#' + focus).focus();
 }
 
+let THEMES = {}, BASEC = {};
+fetch('/themes.json').then(r => r.json()).then(t => { THEMES = t.themes || {}; if (S.v) render(); }).catch(() => {});
 fetch('/cards.json').then(r => r.json()).then(c => {
-  CARDS = c; for (const k of ['s', 'w', 'l']) c[k].forEach(x => (BY[x.id] = x)); c.roles.forEach(r => (ROLES[r.id] = r));
+  CARDS = c; for (const k of ['s', 'w', 'l']) c[k].forEach(x => { BY[x.id] = x; BASEC[x.id] = JSON.parse(JSON.stringify(x)); }); c.roles.forEach(r => (ROLES[r.id] = r));
   if (S.session) connect(); else render();
 });
