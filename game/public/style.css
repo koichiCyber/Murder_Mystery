@@ -362,3 +362,49 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .th input{display:none}.th .ti{font-size:20px}
 .th.on{border-color:#e3b94e;background:#e3b94e22;box-shadow:0 0 0 1px #e3b94e55}
 .th:hover{border-color:#e3b94e99}
+
+/* in-game confirm */
+.cfmbox{max-width:480px;text-align:center}.cfmbox.danger{border-color:#b3261e}
+.cfmc{display:flex;justify-content:center;gap:8px;margin:12px 0}
+.cfmw{margin:8px 0 14px;font-size:16px}
+.cfmbar{display:flex;gap:10px;justify-content:center}
+/* accusation scene */
+.accs{position:fixed;inset:0;z-index:1200;background:radial-gradient(ellipse at 50% 15%,#34204a,#05060d 72%);display:flex;align-items:center;justify-content:center;color:#f5ecd7;overflow:hidden;animation:accin .45s}
+.accs.out{opacity:0;transition:opacity .35s}
+@keyframes accin{from{opacity:0}to{opacity:1}}
+.accs .beam{position:absolute;top:-10%;left:50%;width:80vmin;height:130%;transform:translateX(-50%);background:linear-gradient(rgba(255,226,150,.28),transparent 85%);clip-path:polygon(42% 0,58% 0,100% 100%,0 100%);animation:beamsw 3.2s ease-in-out infinite alternate;pointer-events:none}
+@keyframes beamsw{from{transform:translateX(-56%)}to{transform:translateX(-44%)}}
+.accs .rays{position:absolute;inset:-60%;background:repeating-conic-gradient(from 0deg,#ffd36b30 0 7deg,transparent 7deg 16deg);animation:accspin 14s linear infinite;opacity:0;transition:opacity .6s;pointer-events:none}
+.accs.right .rays{opacity:1}
+@keyframes accspin{to{transform:rotate(360deg)}}
+.accw{position:relative;text-align:center;width:100%;max-width:920px;padding:12px}
+.acctop{display:flex;align-items:center;justify-content:center;gap:14px;animation:acctop .7s cubic-bezier(.2,1.4,.4,1) both}
+@keyframes acctop{from{transform:translateY(-80px);opacity:0}to{transform:none;opacity:1}}
+.acctop h2{font-family:'Playfair Display',serif;font-size:clamp(26px,5vw,46px);color:#ffd36b;text-shadow:0 0 26px #e3b94e88;margin:0}
+.aav{border-radius:12px;overflow:hidden;box-shadow:0 0 0 3px #e3b94e,0 0 24px #e3b94e88}
+.acccards{display:flex;justify-content:center;gap:clamp(8px,2vw,22px);margin:20px 0 10px;min-height:215px}
+.acccards .ac{opacity:0;transform:translateY(-140px) rotate(-8deg) scale(1.45)}
+.acccards .ac.in{animation:acdrop .55s cubic-bezier(.2,1.25,.3,1) forwards}
+@keyframes acdrop{to{opacity:1;transform:none}}
+.accmsg{min-height:34px;font-size:clamp(15px,2.6vw,21px);letter-spacing:.08em;opacity:0;transition:opacity .4s;color:#f3d9a0}
+.accmsg.on{opacity:1;animation:accdrum .2s infinite alternate}
+@keyframes accdrum{from{transform:scale(1)}to{transform:scale(1.05)}}
+.accverdict{min-height:120px}
+.accverdict .vt{font-family:'Playfair Display',serif;font-weight:900;font-size:clamp(44px,10vw,96px);letter-spacing:.04em;animation:accstamp .55s cubic-bezier(.2,1.6,.4,1) both}
+.accverdict .vs{font-size:clamp(15px,2.6vw,22px);margin-top:4px;animation:accfade .8s .4s both}
+@keyframes accstamp{from{transform:scale(3.2) rotate(-9deg);opacity:0}to{transform:scale(1) rotate(-3deg);opacity:1}}
+@keyframes accfade{from{opacity:0}to{opacity:1}}
+.accs.right .vt{color:#ffe08a;text-shadow:0 0 30px #f5b73a,0 0 90px #f5b73a99}
+.accs.right .acccards .ac{animation:none;opacity:1;transform:none;filter:drop-shadow(0 0 18px #ffd36b)}
+.accs.wrong .vt{color:#ff5a5a;text-shadow:0 0 30px #b3261e}
+.accs.wrong .accw{animation:accshake .5s}
+@keyframes accshake{0%,100%{transform:none}20%{transform:translateX(-14px)}40%{transform:translateX(12px)}60%{transform:translateX(-8px)}80%{transform:translateX(6px)}}
+.accs.wrong .acccards .ac{animation:none;opacity:1;transform:none}
+.accs.wrong .acccards .card{filter:grayscale(.95) brightness(.7);transition:filter .6s}
+.accs .flash{position:absolute;inset:0;pointer-events:none;opacity:0}
+.accs.wrong .flash{background:#d4141b;animation:accflash .7s}
+.accs.right .flash{background:#fff3c4;animation:accflash .6s}
+@keyframes accflash{0%{opacity:.55}100%{opacity:0}}
+.accskip{position:absolute;right:18px;bottom:18px;opacity:.8}
+.accs .cf{position:absolute;top:-16px;width:9px;height:15px;border-radius:2px;animation:cfall var(--d) linear forwards;pointer-events:none}
+@keyframes cfall{to{top:105%;margin-left:40px}}

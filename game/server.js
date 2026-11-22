@@ -69,6 +69,7 @@ function view(room, me) {
   v.notes = g.notes[me.id] || [];
   v.used = g.used[me.id];
   v.turn = { suggests: g.t.suggests, max: g.t.max };
+  v.lastAccuse = g.lastAccuse || null;
   if (!g.ult && g.turnUntil && room.phase === 'play' && !g.pending && !g.over) v.turnLeft = Math.max(0, (g.turnUntil - Date.now()) / 1000);
   if (g.pending) {
     const pd = g.pending;
@@ -306,6 +307,8 @@ function act(room, p, a) {
       if (g.rolesOn && g.roles[meId] === 'accomplice') { const from = g.teamMode ? CFG.accSeizeTeam : CFG.accSeizeFfa; if (g.round < from) return E(`Đồng phạm chỉ được chiếm đáp án từ vòng ${from}.`, `The Accomplice can only seize the answer from round ${from}.`); }
       if (!okCard('s', a.s) || !okCard('w', a.w) || !okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       const ok = a.s === g.solution.s && a.w === g.solution.w && a.l === g.solution.l;
+      const freeTry = !ok && g.rolesOn && g.roles[meId] === 'detective' && CFG.detRetry && !g.used[meId].retry;
+      g.accN = (g.accN || 0) + 1; g.lastAccuse = { n: g.accN, by: meId, s: a.s, w: a.w, l: a.l, res: ok ? 'right' : freeTry ? 'free' : 'wrong' };
       pub(room, `${nameOf(room, meId)} buộc tội: ${nm(a.s, room).vi} · ${nm(a.w, room).vi} · ${nm(a.l, room).vi}`, `${nameOf(room, meId)} accuses: ${nm(a.s, room).en} · ${nm(a.w, room).en} · ${nm(a.l, room).en}`);
       if (ok) {
         if (g.teamMode && g.roles[meId] === 'accomplice') finish(room, 'bad', [meId], `${nameOf(room, meId)} là Đồng phạm và đã chiếm được đáp án! Phe Ác thắng!`, `${nameOf(room, meId)} is the Accomplice and seized the answer! The Bad team wins!`);

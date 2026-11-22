@@ -140,6 +140,9 @@ function onState() {
   if (v.phase === 'play' && !S.shownRole) { S.shownRole = true; const fk = 'mm_intro_' + v.code + '_' + (v.hand || []).join(''); if (!sessionStorage.getItem(fk)) { sessionStorage.setItem(fk, 1); showHandIntro(); } }
   if (v.phase === 'play' && S.prevPhase === 'play' && v.seen.length > S.prevSeen) { const s = v.seen[v.seen.length - 1]; setTimeout(() => revealCard(s.card, s.byName), 1700); }
   if (v.phase === 'play') S.prevSeen = v.seen.length;
+  { const la = v.lastAccuse, cur = la ? la.n : 0;
+    if (S.seenAcc === undefined || !la) S.seenAcc = cur;
+    else if (cur > S.seenAcc) { S.seenAcc = cur; showAccuseScene(la); } }
   S.prevPhase = v.phase;
   render();
 }
@@ -165,6 +168,50 @@ function showRole() {
   const why = v.myRole === 'witness' ? T('Bạn đã thấy hiện trường: đây là ĐỊA ĐIỂM của vụ án.', 'You saw the scene: this is the crime LOCATION.')
     : v.myRole === 'accomplice' ? T(`Bạn biết Hung thủ (NGHI PHẠM)${v.cfg.accWeapon ? ' và HUNG KHÍ' : ''} của vụ án. Chỉ được chiếm đáp án từ vòng ${v.teamMode ? v.cfg.accSeizeTeam : v.cfg.accSeizeFfa}.${v.cfg.accWithhold ? '' : ' Không được giấu lá.'}`, `You know the Murderer (SUSPECT)${v.cfg.accWeapon ? ' and the WEAPON' : ''}. You may seize the answer from round ${v.teamMode ? v.cfg.accSeizeTeam : v.cfg.accSeizeFfa}.${v.cfg.accWithhold ? '' : ' You cannot withhold cards.'}`) : '';
   $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3 style="margin-bottom:10px">${T('Vai trò bí mật của bạn', 'Your secret role')}</h3><div class="row" style="align-items:flex-start;justify-content:center">${roleHTML(v.myRole, 0.9, v.teamMode)}</div>${sec ? `<div style="margin-top:12px">${why}</div><div class="cards" style="margin-top:8px;justify-content:center">${sec}</div>` : ''}<div style="margin-top:14px;text-align:center"><button class="btn" onclick="closeModal()">${T('Đã hiểu — ẩn đi', 'Got it — hide')}</button></div></div></div>`;
+}
+function askConfirm(o) {
+  S.cfmCb = o.cb;
+  $('#modal').innerHTML = `<div class="back cfm" onclick="if(event.target===this)closeModal()"><div class="box cfmbox ${o.danger ? 'danger' : ''}"><h3>${o.title}</h3>${o.html || ''}<div class="cfmbar"><button class="btn sec" onclick="closeModal()">${o.cancel || T('Hủy', 'Cancel')}</button><button class="btn ${o.danger ? 'red' : ''}" onclick="closeModal();S.cfmCb&&S.cfmCb()">${o.ok || 'OK'}</button></div></div></div>`;
+}
+function leaveAsk() { askConfirm({ title: T('Rời phòng?', 'Leave room?'), html: `<p class="cfmw">${T('Bạn sẽ thoát khỏi ván đang chơi.', 'You will leave the current game.')}</p>`, ok: T('Rời phòng', 'Leave'), danger: true, cb: leave }); }
+function arrestAsk() {
+  const safe = S.v.cfg.policeWrong === 'SAFE';
+  askConfirm({ title: T('Bắt giữ Đồng phạm?', 'Arrest the Accomplice?'), html: `<p class="cfmw">${safe ? T('Bắt người này? Sai là mất quyền bắt giữ.', 'Arrest this player? Wrong = you lose the power.') : T('Bắt người này? Sai là bạn bị loại.', 'Arrest this player? Wrong = you are out.')}</p>`, ok: T('Bắt giữ', 'Arrest'), danger: true, cb: doPower });
+}
+function sfx(kind) {
+  try {
+    if (localStorage.mm_sfx === '0') return;
+    const A = S.ac || (S.ac = new (window.AudioContext || window.webkitAudioContext)()), t = A.currentTime;
+    const tone = (f, d, t0, type = 'sine', g = .12) => { const o = A.createOscillator(), n = A.createGain(); o.type = type; o.frequency.value = f; n.gain.setValueAtTime(0, t + t0); n.gain.linearRampToValueAtTime(g, t + t0 + .01); n.gain.exponentialRampToValueAtTime(.0001, t + t0 + d); o.connect(n); n.connect(A.destination); o.start(t + t0); o.stop(t + t0 + d + .05); };
+    if (kind === 'thud') tone(90, .28, 0, 'triangle', .3);
+    else if (kind === 'drum') for (let i = 0; i < 11; i++) tone(75 + i * 5, .09, i * .13, 'triangle', .12 + i * .012);
+    else if (kind === 'right') [523, 659, 784, 1047].forEach((f, i) => tone(f, .5, i * .13, 'triangle', .14));
+    else if (kind === 'wrong') { tone(196, .4, 0, 'sawtooth', .1); tone(147, .7, .22, 'sawtooth', .1); }
+  } catch (e) {}
+}
+function closeAccuse() { const el = document.getElementById('accscene'); if (!el) return; (el._tm || []).forEach(clearTimeout); el.classList.add('out'); setTimeout(() => el.remove(), 350); }
+function showAccuseScene(la) {
+  const v = S.v, P = v.players, by = P.find(p => p.id === la.by), bi = P.findIndex(p => p.id === la.by), me = la.by === v.me;
+  const who = me ? T('Bạn', 'You') : esc(by ? by.name : '?');
+  const old = document.getElementById('accscene'); if (old) { (old._tm || []).forEach(clearTimeout); old.remove(); }
+  const el = document.createElement('div'); el.id = 'accscene'; el.className = 'accs'; el._tm = [];
+  el.innerHTML = `<div class="rays"></div><div class="beam"></div><div class="accw"><div class="acctop"><span class="aav">${avatar(bi < 0 ? 0 : bi, 72)}</span><h2>${T(`${who} buộc tội!`, me ? 'You accuse!' : `${who} accuses!`)}</h2></div><div class="acccards">${[la.s, la.w, la.l].map((id, i) => `<div class="ac">${cardHTML(id, 0.62)}</div>`).join('')}</div><div class="accmsg">${T('Hồ sơ mật đang được mở…', 'The sealed file is being opened…')}</div><div class="accverdict"></div></div><button class="btn sec accskip" onclick="closeAccuse()">${T('Bỏ qua', 'Skip')} ▸</button><div class="flash"></div>`;
+  document.body.appendChild(el);
+  const at = (ms, f) => el._tm.push(setTimeout(f, ms)), cs = el.querySelectorAll('.ac');
+  [900, 1700, 2500].forEach((ms, i) => at(ms, () => { cs[i].classList.add('in'); sfx('thud'); }));
+  at(3500, () => { el.querySelector('.accmsg').classList.add('on'); sfx('drum'); });
+  at(5100, () => {
+    const vd = el.querySelector('.accverdict'), msg = el.querySelector('.accmsg'); msg.classList.remove('on'); msg.style.opacity = 0;
+    if (la.res === 'right') {
+      el.classList.add('right'); sfx('right');
+      vd.innerHTML = `<div class="vt">${T('ĐÚNG RỒI!', 'CORRECT!')}</div><div class="vs">${T(`${who} đã tìm ra đáp án!`, me ? 'You found the answer!' : `${who} found the answer!`)}</div>`;
+      for (let i = 0; i < 46; i++) { const c = document.createElement('i'); c.className = 'cf'; c.style.cssText = `left:${Math.random() * 100}%;background:${['#ffd36b', '#e0484f', '#4fb3a0', '#8fa8ff', '#fff'][i % 5]};--d:${2.2 + Math.random() * 2}s;animation-delay:${Math.random() * .8}s;transform:rotate(${Math.random() * 360}deg)`; el.appendChild(c); }
+    } else {
+      el.classList.add('wrong'); sfx('wrong');
+      vd.innerHTML = `<div class="vt">${T('SAI RỒI!', 'WRONG!')}</div><div class="vs">${la.res === 'free' ? T(`${who} sai, nhưng Thám tử còn 1 lượt thử lại.`, me ? 'Wrong, but as Detective you get a free retry.' : `${who} is wrong, but the Detective gets a free retry.`) : T(`${who} bị loại.`, me ? 'You are out.' : `${who} is out.`)}</div>`;
+    }
+  });
+  at(9200, closeAccuse);
 }
 function showVoteResult() {
   const v = S.v, lv = v.ult && v.ult.lastVote; if (!lv) return;
@@ -332,8 +379,8 @@ function selOK() { return S.sel.s && S.sel.w && S.sel.l; }
 function doSuggest() { if (!selOK()) return toast('Chọn đủ 3 lá.', 'Pick all 3 cards.'); api('suggest', S.sel).then(j => { if (j.error) return; S.wiz = null; S.sel = { s: null, w: null, l: null }; render(); }); }
 function doAccuse() {
   if (!selOK()) return toast('Chọn đủ 3 lá.', 'Pick all 3 cards.');
-  const n = `${LN(BY[S.sel.s])} · ${LN(BY[S.sel.w])} · ${LN(BY[S.sel.l])}`;
-  if (confirm(`${S.v.teamMode && S.v.myRole === 'accomplice' ? TL('Chiếm đáp án', 'Seize the answer') : TL('Buộc tội', 'Accuse')}: ${n}\n${TL('Sai sẽ bị loại. Chắc chắn chứ?', 'Wrong = eliminated. Sure?')}`)) api('accuse', S.sel).then(j => { if (j.error) return; S.wiz = null; render(); });
+  const sel = { s: S.sel.s, w: S.sel.w, l: S.sel.l }, seize = S.v.teamMode && S.v.myRole === 'accomplice';
+  askConfirm({ danger: true, title: seize ? T('Chiếm đáp án?', 'Seize the answer?') : T('Buộc tội?', 'Accuse?'), html: `<div class="cards cfmc">${[sel.s, sel.w, sel.l].map(id => cardHTML(id, 0.5)).join('')}</div><p class="cfmw">${T('Sai sẽ bị loại. Chắc chắn chứ?', 'Wrong = eliminated. Are you sure?')}</p>`, ok: seize ? T('Chiếm đáp án!', 'Seize it!') : T('Buộc tội!', 'Accuse!'), cb: () => api('accuse', sel).then(j => { if (j.error) return; S.wiz = null; S.sel = { s: null, w: null, l: null }; render(); }) });
 }
 function doEnd() { api('end'); }
 function doPower() { const v = S.v; if (v.myRole === 'innocent') return api('power'); if (!S.pw.target) return toast('Chọn một người.', 'Pick a player.'); api('power', S.pw); }
@@ -402,7 +449,7 @@ function topBar() {
   const MU = `<button class="pill" onclick="toggleMusic()" title="${T('Nhạc nền', 'Music')}">${M.on && !M.muted ? '🎵' : '🔇'}</button>`;
   const L = (k, t) => `<button class="pill ${S.lang === k ? 'on' : ''}" onclick="setLang('${k}')">${t}</button>`;
   const v = S.v;
-  return `<div class="top"><h1>${S.lang === 'en' ? 'Manor Murder Mystery' : 'Án Mạng Dinh Thự'}</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="if(confirm(TL('Rời phòng?', 'Leave room?')))leave()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
+  return `<div class="top"><h1>${S.lang === 'en' ? 'Manor Murder Mystery' : 'Án Mạng Dinh Thự'}</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="leaveAsk()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
 }
 function homeView() {
   const room = new URLSearchParams(location.search).get('room') || '';
@@ -449,7 +496,7 @@ function powerHTML(v) {
   if (r === 'police') {
     const opts = v.players.filter(p => p.id !== v.me && !p.elim).map(p => `<option value="${p.id}" ${S.pw.target === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
     return `<div class="row"><select style="width:auto" onchange="setPw('target',this.value)"><option value="">${S.lang === 'en' ? 'Suspect…' : 'Nghi can…'}</option>${opts}</select>
-    <button class="btn" style="background:#8f1d27" onclick="if(confirm('${S.lang === 'en' ? (S.v.cfg.policeWrong === 'SAFE' ? 'Arrest this player? Wrong = you lose the power.' : 'Arrest this player? Wrong = you are out.') : (S.v.cfg.policeWrong === 'SAFE' ? 'Bắt người này? Sai là mất quyền bắt giữ.' : 'Bắt người này? Sai là bạn bị loại.')}'))doPower()">${T('Bắt giữ Đồng phạm (1 lần)', 'Arrest the Accomplice (once)')}</button></div>`;
+    <button class="btn" style="background:#8f1d27" onclick="arrestAsk()">${T('Bắt giữ Đồng phạm (1 lần)', 'Arrest the Accomplice (once)')}</button></div>`;
   }
   if (r === 'reporter' || r === 'detective') {
     const opts = v.players.filter(p => p.id !== v.me).map(p => `<option value="${p.id}" ${S.pw.target === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('');

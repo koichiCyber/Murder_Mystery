@@ -328,6 +328,7 @@ function actInner(room, p, a) {
       if (role === 'accomplice' && g.round < 3) return E('Đồng phạm chỉ được chiếm đáp án từ vòng 3.', 'The Accomplice can only seize the answer from round 3.');
       if (!X.okCard('s', a.s) || !X.okCard('w', a.w) || !X.okCard('l', a.l)) return E('Chọn đủ 1 nghi phạm, 1 hung khí, 1 địa điểm.', 'Pick 1 suspect, 1 weapon and 1 location.');
       const ok = a.s === g.solution.s && a.w === g.solution.w && a.l === g.solution.l;
+      g.accN = (g.accN || 0) + 1; g.lastAccuse = { n: g.accN, by: me, s: a.s, w: a.w, l: a.l, res: ok ? 'right' : 'wrong' };
       X.pub(room, `${X.nameOf(room, me)} buộc tội: ${X.nm(a.s, room).vi} · ${X.nm(a.w, room).vi} · ${X.nm(a.l, room).vi}`, `${X.nameOf(room, me)} accuses: ${X.nm(a.s, room).en} · ${X.nm(a.w, room).en} · ${X.nm(a.l, room).en}`);
       if (ok) {
         if (!u.hard) X.finish(room, 'solo', [me], `${X.nameOf(room, me)} buộc tội đúng và thắng!`, `${X.nameOf(room, me)} is right and wins!`);
