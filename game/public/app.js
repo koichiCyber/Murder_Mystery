@@ -173,6 +173,18 @@ function computeNB() {
   }
   return { cells, holder, solved, seenSet };
 }
+function histHTML() {
+  const v = S.v, P = v.players, f = S.histF || null, nm = id => (P.find(p => p.id === id) || {}).name || '?';
+  const chip = id => `<span class="hch"><i class="mini">${avatar(P.findIndex(p => p.id === id), 18)}</i>${id === v.me ? T('Bạn', 'You') : esc(nm(id))}</span>`;
+  const filt = `<div class="hfil"><button class="${!f ? 'on' : ''}" onclick="S.histF=null;render()">${T('Tất cả', 'All')}</button>${P.map((p, i) => `<button class="${f === p.id ? 'on' : ''}" onclick="S.histF='${p.id}';render()">${avatar(i, 26)}</button>`).join('')}</div>`;
+  const list = (v.hist || []).filter(h => !f || h.by === f).slice().reverse();
+  const row = h => {
+    const cards = [h.s, h.l, h.w].map(id => `<span class="hcard k${id[0]}"><i>${BY[id].svg}</i><b>${esc(cname(id))}</b></span>`).join('');
+    const res = [...(h.passed || []).map(id => `<span class="hr no">${esc(id === v.me ? T('Bạn', 'You') : nm(id))} ✗</span>`), h.ans ? `<span class="hr yes">${esc(h.ans === v.me ? T('Bạn', 'You') : nm(h.ans))} ✓</span>` : h.done ? `<span class="hr none">${T('Không ai có', 'No one had any')}</span>` : `<span class="hr wait">…</span>`].join('');
+    return `<div class="hrow"><div class="hwho">${avatar(P.findIndex(p => p.id === h.by), 34)}<span><b>${h.by === v.me ? T('Bạn', 'You') : esc(nm(h.by))}</b> ${T('hỏi', 'asked')} <small>${T('Vòng', 'Rd')} ${h.round}</small></span></div><div class="hcards">${cards}</div><div class="hres">${res}</div></div>`;
+  };
+  return `<div class="hist">${filt}${list.length ? list.map(row).join('') : `<div class="hempty">${T('Chưa có câu hỏi nào.', 'No questions yet.')}</div>`}</div>`;
+}
 function notebookHTML() {
   const v = S.v, P = v.players, { cells, holder, solved, seenSet } = computeNB();
   const pd = v.pending, wait = {};
@@ -410,7 +422,7 @@ function playView() {
   const tray = `<div class="tray"><div class="tab">${T('MẢNH BÀI CỦA BẠN', 'YOUR CARDS')} (${v.hand.length})</div>${v.myRole ? `<button class="pill rolebtn" onclick="showRole()">${T('Vai trò của tôi', 'My role')}</button>` : ''}
   <div class="trow"><div class="cards">${v.hand.map(id => cardHTML(id, tsc)).join('')}</div>
   ${v.secrets.length ? `<div class="sec"><div class="lab">${T('BÍ MẬT TỪ VAI TRÒ', 'SECRET FROM ROLE')}</div><div class="cards">${v.secrets.map(id => cardHTML(id, tsc)).join('')}</div></div>` : ''}</div></div>`;
-  const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><button class="pill" onclick="toggleNB()">✕</button></div>${notebookHTML()}</div></aside>` : '';
+  const nbPanel = S.nbOpen ? `<aside class="nbp"><div class="nbin"><div class="nbtop"><h3>${T('Sổ tay', 'Notebook')}</h3><div class="nbtabs"><button class="${S.nbTab !== 'hist' ? 'on' : ''}" onclick="S.nbTab='notes';render()">${T('Manh mối', 'Clues')}</button><button class="${S.nbTab === 'hist' ? 'on' : ''}" onclick="S.nbTab='hist';render()">${T('Lịch sử', 'History')} ${(v.hist || []).length}</button></div><button class="pill" onclick="toggleNB()">✕</button></div>${S.nbTab === 'hist' ? histHTML() : notebookHTML()}</div></aside>` : '';
   const info = `<span class="pill team">${v.teamMode ? T('Đội', 'Team') : T('Một mình', 'Solo')}</span>`;
   return `<div class="felt ${S.nbOpen ? 'withnb' : ''}">${nbPanel}<div class="tbl"><div class="rcorner ${v.round >= v.maxRounds ? 'last' : ''}"><small>${T('VÒNG', 'ROUND')}</small><b>${v.round}<i>/${v.maxRounds}</i></b></div><div class="top2">${topBar()}<div class="r2">${info}${S.nbOpen ? '' : `<button class="pill on" onclick="toggleNB()">${T('Sổ tay', 'Notebook')}</button>`}</div></div><div class="pstrip">${strip}</div>${main}${tray}${actionBar}</div></div>`;
 }
