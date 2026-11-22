@@ -1,7 +1,7 @@
 // Ultima mode (Luật v2) - separate game mode. Self-contained engine; server.js delegates to it when g.ult is set.
 // Levels: 'normal' = Clue only (3-10 players, last one standing). 'hard' (>=6 players) = roles, action cards, night, village vote.
 const envN = (k, d) => (process.env[k] !== undefined && process.env[k] !== '' && !isNaN(+process.env[k])) ? +process.env[k] : d;
-const WINDOW = envN('ULT_WINDOW', 5000), NIGHT = envN('ULT_NIGHT', 35000), VOTE = envN('ULT_VOTE', 60000), TURN = envN('ULT_TURN', 90000), ANSWER = envN('ULT_ANSWER', 60000);
+const WINDOW = envN('ULT_WINDOW', 5000), NIGHT = envN('ULT_NIGHT', 35000), VOTE = envN('ULT_VOTE', 60000), TURN = envN('ULT_TURN', 90000), TURN_N = envN('ULT_TURN_NORMAL', 45000), ANSWER = envN('ULT_ANSWER', 60000);
 const ACTS = {
   counter: { vi: 'Phản đối!', en: 'Counter!', base: 4 }, dodge: { vi: 'Lánh mặt', en: 'Lie low', base: 4 }, frame: { vi: 'Đổ tội', en: 'Frame', base: 3 },
   intuition: { vi: 'Linh cảm', en: 'Hunch', base: 4 }, shuffle: { vi: 'Xáo trộn hiện trường', en: 'Scene shuffle', base: 2 }, interrogate: { vi: 'Thẩm vấn', en: 'Interrogate', base: 4 },
@@ -78,7 +78,7 @@ function resolveNight(room) {
 function beginTurn(room) {
   const g = room.g, u = g.ult;
   u.sub = 'turn'; g.t = { suggests: 0, max: 1 }; g.pending = null; u.window = null; u.noDraw = false; u.botTried = {};
-  u.turnUntil = u.hard ? now() + TURN : 0;
+  u.turnUntil = now() + (u.hard ? TURN : TURN_N);
 }
 function firstAlive(room) { const i = room.players.findIndex(p => !room.g.elim[p.id]); return i < 0 ? 0 : i; }
 function nextTurn(room) {
@@ -208,7 +208,13 @@ function apply(room, e) {
 }
 
 // ---------- actions ----------
-function act(room, p, a) {
+function act(room, p, a) { const r = actInner(room, p, a); afterAct(room); return r; }
+function afterAct(room) {
+  const g = room.g; if (!g || room.phase !== 'play' || !g.ult) return;
+  const u = g.ult;
+  if (!u.hard && u.sub === 'turn' && g.t.suggests >= g.t.max && !g.pending && !u.window) endTurn(room);
+}
+function actInner(room, p, a) {
   const g = room.g, u = g.ult, E = X.E, me = p.id, myTurn = room.players[g.turn].id === me;
   const out = g.elim[me];
   const A = () => (u.acts[me] || []);
@@ -350,7 +356,7 @@ function tick(room) {
   else if (u.window && t >= u.window.until) { resolveWindow(room); ch = true; }
   else if (g.pending && g.pending.disprover && t >= u.ansUntil && room.players.find(p => p.id === g.pending.disprover && !p.bot)) {
     const pd = g.pending; act(room, X.byId(room, pd.disprover), { type: 'show', card: pd.match[0] }); ch = true;
-  } else if (u.hard && u.sub === 'turn' && !g.pending && !u.window && u.turnUntil && t >= u.turnUntil) {
+  } else if (u.sub === 'turn' && !g.pending && !u.window && u.turnUntil && t >= u.turnUntil) {
     X.pub(room, `Hết giờ! ${room.players[g.turn].name} bị tự động kết thúc lượt.`, `Time's up! ${room.players[g.turn].name}'s turn ends automatically.`); endTurn(room); ch = true;
   }
   return ch;
@@ -371,7 +377,7 @@ function view(room, me, v) {
   }
   v.secrets = secrets;
   v.used = g.used[me.id];
-  if (u.hard && g.turn !== undefined && !g.elim[room.players[g.turn].id] && !g.pending && !u.window && u.sub === 'turn' && u.turnUntil) v.turnLeft = left(u.turnUntil);
+  if (g.turn !== undefined && !g.elim[room.players[g.turn].id] && !g.pending && !u.window && u.sub === 'turn' && u.turnUntil) v.turnLeft = left(u.turnUntil);
   const w = u.window;
   v.ult = {
     hard: u.hard, sub: u.sub, myActs: (u.acts[me.id] || []).slice(), pile: u.pile.length, discard: u.discard.length,
