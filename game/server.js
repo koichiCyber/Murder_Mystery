@@ -29,6 +29,8 @@ for (const k of ['s', 'w', 'l']) CARDS[k].forEach(c => (NAMES[c.id] = c));
 const CAT = { s: ['suspect', 'nghi phạm'], w: ['weapon', 'hung khí'], l: ['location', 'địa điểm'] };
 const ROLE_ORDER = ['detective', 'witness', 'accomplice', 'police', 'reporter', 'innocent'];
 const TEAM = { detective: 'good', witness: 'good', police: 'good', reporter: 'good', innocent: 'good', accomplice: 'bad' };
+const BOT_NAMES_VI = ['Minh', 'Lan', 'Hùng', 'Mai', 'Tú', 'Hoa', 'Nam', 'Thảo', 'Bảo', 'Linh', 'Quân', 'Phúc', 'Hạnh', 'Dũng', 'Yến', 'Khoa', 'Trang', 'Sơn', 'Vy', 'Đạt', 'Nhi', 'Tâm', 'Huy', 'Ngân'];
+const BOT_NAMES_EN = ['Alex', 'Sam', 'Riley', 'Jordan', 'Casey', 'Morgan', 'Taylor', 'Quinn', 'Avery', 'Jamie', 'Drew', 'Robin', 'Skyler', 'Parker', 'Rowan', 'Reese', 'Blake', 'Finley', 'Sage', 'Emery'];
 const MAX_PLAYERS = 12;
 const capOf = room => (room.settings && room.settings.game === 'ultima') ? 12 : 6;
 const U = require('./ultima');
@@ -246,8 +248,11 @@ function act(room, p, a) {
     case 'addbot': {
       if (!isHost || room.phase !== 'lobby') return E('Chỉ chủ phòng, trong phòng chờ.', 'Host only, in the lobby.');
       if (room.players.length >= capOf(room)) return E(`Phòng đã đủ ${capOf(room)} người.`, `Room is full (${capOf(room)}).`);
-      let n = room.players.filter(x => x.bot).length + 1, name;
-      do { name = `${a.lang === 'en' ? 'Bot' : 'Máy'} ${n++}`; } while (room.players.some(x => x.name.toLowerCase() === name.toLowerCase()));
+      const pool = a.lang === 'en' ? BOT_NAMES_EN : BOT_NAMES_VI;
+      const free = pool.filter(p => !room.players.some(x => x.name.toLowerCase() === p.toLowerCase()));
+      let name;
+      if (free.length) name = free[Math.floor(Math.random() * free.length)];
+      else { let n = room.players.filter(x => x.bot).length + 1; do { name = `${a.lang === 'en' ? 'Bot' : 'Máy'} ${n++}`; } while (room.players.some(x => x.name.toLowerCase() === name.toLowerCase())); }
       room.players.push({ id: tok().slice(0, 8), name, token: tok(), conns: new Set(), bot: true });
       return null;
     }
