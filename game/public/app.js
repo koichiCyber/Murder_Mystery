@@ -43,7 +43,7 @@ const ACT = {
 const atype = id => String(id).split('_')[0];
 function actHTML(id, o = {}) {
   const t = atype(id), a = ACT[t], col = t === 'blank' ? (id.split('_')[1][0] === 'A' ? '#6b8ec9' : '#c98f6b') : a.c, en = S.lang === 'en';
-  return `<div class="act ${o.cls || ''} ${o.sel ? 'sel' : ''}" data-aid="${id}" style="--c:${col}" ${o.click ? `onclick="${o.click}"` : ''} title="${esc(en ? a.de : a.dv)}"><div class="ai">${a.i}</div><div class="an">${esc(en ? a.en : a.vi)}</div>${t === 'blank' ? `<div class="ad">${id.split('_')[1][0]}</div>` : `<div class="ad">${esc(en ? a.de : a.dv)}</div>`}</div>`;
+  return `<div class="act ${o.cls || ''} ${o.sel ? 'sel' : ''}" data-aid="${id}" style="--c:${col}" ${o.click ? `onclick="${o.click}"` : ''} title="${esc(en ? a.de : a.dv)}"><div class="ai"><img src="art/a_${t}.jpg" alt="${a.i}" draggable="false"></div><div class="an">${esc(en ? a.en : a.vi)}</div>${t === 'blank' ? `<div class="ad">${id.split('_')[1][0]}</div>` : `<div class="ad">${esc(en ? a.de : a.dv)}</div>`}</div>`;
 }
 function targetModal(title, cb) {
   const v = S.v; S.tcb = cb;

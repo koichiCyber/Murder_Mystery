@@ -456,3 +456,7 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
   .felt .tbl{padding-bottom:150px}
   .bt-t{font-size:26px}
 }
+/* action card art */
+.act .ai{width:100%;height:auto;margin:0;font-size:0;line-height:0}
+.act .ai img{width:100%;aspect-ratio:520/310;object-fit:cover;border-radius:7px;display:block;border:1px solid #0003}
+.act[data-aid^=blank] .ad{font-size:15px;margin-top:4px}
