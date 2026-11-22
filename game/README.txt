@@ -90,3 +90,6 @@ LANGUAGE: use the VI / EN buttons at the top; the game shows one language at a t
 BOTS: in the lobby press 'Add bot / Thêm máy' to play solo. Speed: BOT_DELAY (ms, default 2500).
 
 ULTIMA MODE: choose "Ultima" in the lobby (3-10 players). Timers (ms): ULT_TURN, ULT_WINDOW, ULT_NIGHT, ULT_VOTE, ULT_ANSWER.
+
+
+Classic mode timer: each turn lasts 45 seconds (env CLASSIC_TURN in ms); the clock pauses while a suggestion is being answered and the turn passes automatically at zero.

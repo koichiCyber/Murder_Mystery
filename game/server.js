@@ -41,6 +41,7 @@ const code4 = () => { const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; let c; do { c = Arra
 const tok = () => crypto.randomBytes(12).toString('hex');
 const E = (vi, en) => ({ error: { vi, en } });
 const nm = id => NAMES[id];
+const TURN_C = parseInt(process.env.CLASSIC_TURN, 10) || 45000;
 
 function pub(room, vi, en) { room.log.push({ vi, en }); if (room.log.length > 300) room.log.shift(); }
 function byId(room, id) { return room.players.find(p => p.id === id); }
@@ -66,6 +67,7 @@ function view(room, me) {
   v.notes = g.notes[me.id] || [];
   v.used = g.used[me.id];
   v.turn = { suggests: g.t.suggests, max: g.t.max };
+  if (!g.ult && g.turnUntil && room.phase === 'play' && !g.pending && !g.over) v.turnLeft = Math.max(0, (g.turnUntil - Date.now()) / 1000);
   if (g.pending) {
     const pd = g.pending;
     v.pending = { suggester: pd.suggester, disprover: pd.disprover, s: pd.s, w: pd.w, l: pd.l, kind: pd.kind || 'suggest', cat: pd.cat || null, order: pd.order, pos: pd.pos, passed: pd.h ? pd.h.passed : [] };
@@ -190,7 +192,7 @@ function nextTurn(room) {
     i = (i + 1) % n; if (i === 0) wrapped = true;
     if (!g.elim[room.players[i].id]) break;
   }
-  g.turn = i; g.t = { suggests: 0, max: 1 };
+  g.turn = i; g.t = { suggests: 0, max: 1 }; g.turnUntil = Date.now() + TURN_C; g.turnTick = Date.now();
   if (wrapped) {
     g.round++;
     if (g.round > room.settings.maxRounds) {
@@ -396,13 +398,24 @@ function startGame(room) {
     const rs = shuffle(ROLE_ORDER.slice(0, n));
     room.players.forEach((p, i) => (roles[p.id] = rs[i]));
   }
-  room.g = { solution, hands, roles, rolesOn, teamMode: rolesOn && room.settings.mode === 'team', used, seen, notes, elim: {}, turn: 0, round: 1, t: { suggests: 0, max: 1 }, pending: null, over: null };
+  room.g = { solution, hands, roles, rolesOn, teamMode: rolesOn && room.settings.mode === 'team', used, seen, notes, elim: {}, turn: 0, round: 1, t: { suggests: 0, max: 1 }, pending: null, over: null, turnUntil: Date.now() + TURN_C, turnTick: Date.now() };
   room.phase = 'play'; room.log = [];
   pub(room, `Ván mới với ${n} người, ${rolesOn ? (room.g.teamMode ? 'chế độ Đội' : 'chế độ Một mình (có vai trò)') : 'không vai trò'}. ${room.players[0].name} đi trước.`, `New game with ${n} players, ${rolesOn ? (room.g.teamMode ? 'Team mode' : 'Free-for-all (with roles)') : 'no roles'}. ${room.players[0].name} goes first.`);
 }
 
+function classicTick(room) {
+  const g = room.g, now = Date.now();
+  if (!g || g.ult || room.phase !== 'play' || g.over || !g.turnUntil) return false;
+  const dt = now - (g.turnTick || now); g.turnTick = now;
+  if (g.pending) { g.turnUntil += dt; return false; }   // paused while a suggestion is being answered
+  if (now < g.turnUntil) return false;
+  const p = room.players[g.turn];
+  pub(room, `${p.name} hết giờ. Lượt chuyển tiếp.`, `${p.name} ran out of time. Turn passes.`);
+  nextTurn(room);
+  return true;
+}
 U.init({ CARDS, pub, byId, nameOf, shuffle, pick, ri, E, okCard, nm, finish, findDisprover, act: (room, p, a) => act(room, p, a) });
-setInterval(() => { for (const c in rooms) { const r = rooms[c]; try { if (U.tick(r)) { broadcast(r); r.botFails = 0; scheduleBots(r); } } catch (e) { console.error('tick', e); } } }, 400);
+setInterval(() => { for (const c in rooms) { const r = rooms[c]; try { if (U.tick(r) | classicTick(r)) { broadcast(r); r.botFails = 0; scheduleBots(r); } } catch (e) { console.error('tick', e); } } }, 400);
 
 // ---------- HTTP ----------
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg', '.png': 'image/png', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4a': 'audio/mp4' };
