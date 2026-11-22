@@ -1,0 +1,82 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Án Mạng Dinh Thự – Launcher</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 0%,#3a2418,#150d09 70%);color:#f3e4c1;font:16px/1.45 Georgia,'Times New Roman',serif;display:flex;justify-content:center;padding:28px 14px}
+.w{width:100%;max-width:560px}h1{margin:0;text-align:center;color:#f0c46a;font-size:34px;letter-spacing:3px;text-shadow:0 0 22px #c9822a77}
+.sub{text-align:center;color:#cdbb92;letter-spacing:5px;font-size:13px;margin:4px 0 18px}
+.card{background:#2118139e;border:1px solid #6b4a2a;border-radius:12px;padding:16px 18px;margin-bottom:14px}
+label{display:block;margin:12px 0 4px;color:#e8d6ac}label small{color:#a8977a;font-style:italic;margin-left:6px}
+input[type=number],select{width:100%;padding:10px;border-radius:8px;border:1px solid #6b4a2a;background:#120b08;color:#f3e4c1;font:inherit}
+.row{display:flex;gap:12px}.row>div{flex:1}
+.chk{display:flex;gap:10px;align-items:flex-start;margin-top:14px}.chk input{margin-top:5px;transform:scale(1.3)}
+.btn{width:100%;padding:15px;border:0;border-radius:10px;background:linear-gradient(#f0c46a,#c98f2f);color:#2a1b12;font:bold 20px Georgia,serif;cursor:pointer;margin-top:8px}
+.btn:hover{filter:brightness(1.08)}.btn.red{background:linear-gradient(#d9604f,#a3382c);color:#fff;font-size:17px}.btn.ghost{background:#3b2a1d;color:#f0c46a;border:1px solid #6b4a2a;font-size:16px}
+.lang{position:fixed;top:12px;right:14px}.lang button{background:#3b2a1d;color:#f0c46a;border:1px solid #6b4a2a;border-radius:6px;padding:5px 10px;cursor:pointer}
+.ok{color:#8fe08f;font-weight:bold;font-size:20px;text-align:center}.err{color:#ff9b8a}.tip{color:#a8977a;font-size:14px}
+.url{display:flex;gap:8px;align-items:center;margin:8px 0}.url code{flex:1;background:#120b08;border:1px solid #6b4a2a;border-radius:8px;padding:9px;word-break:break-all;color:#ffe9b0;font-size:15px}
+.url button{padding:9px 12px;border-radius:8px;border:1px solid #6b4a2a;background:#3b2a1d;color:#f0c46a;cursor:pointer}
+pre{background:#0c0705;border-radius:8px;padding:10px;font-size:12px;color:#bfae86;max-height:140px;overflow:auto;white-space:pre-wrap;margin:8px 0 0}
+.h{color:#f0c46a;margin:0 0 6px;font-size:18px}.hide{display:none}
+</style></head><body>
+<div class="lang"><button onclick="setLang('vi')">VI</button> <button onclick="setLang('en')">EN</button></div>
+<div class="w">
+<h1>ÁN MẠNG DINH THỰ</h1><div class="sub">MANOR MURDER MYSTERY</div>
+
+<div id="setup">
+<div class="card">
+ <div class="row"><div><label><span data-t="Độ khó|Difficulty"></span><small data-t="(chế độ Cổ điển)|(Classic mode)"></small></label>
+  <select id="difficulty"><option value="EASY" data-t="Dễ|Easy"></option><option value="NORMAL" data-t="Vừa|Normal"></option><option value="HARD" data-t="Khó|Hard"></option></select></div>
+ <div><label data-t="Tốc độ bot|Bot speed"></label>
+  <select id="botSpeed"><option value="fast" data-t="Nhanh|Fast"></option><option value="normal" data-t="Vừa|Normal"></option><option value="slow" data-t="Chậm|Slow"></option></select></div></div>
+ <div class="row"><div><label><span data-t="Thời gian mỗi lượt Cổ điển|Classic turn time"></span><small data-t="(giây)|(seconds)"></small></label><input type="number" id="classicTurn" min="10" max="600"></div>
+ <div><label><span data-t="Thời gian mỗi lượt Ultima|Ultima turn time"></span><small data-t="(giây)|(seconds)"></small></label><input type="number" id="ultimaTurn" min="10" max="600"></div></div>
+ <label><span data-t="Cổng|Port"></span><small data-t="(để 3000 nếu không rõ)|(leave 3000 if unsure)"></small></label><input type="number" id="port" min="1024" max="65535">
+ <div class="chk"><input type="checkbox" id="tunnel"><div><b data-t="Cho bạn bè ở ngoài mạng nhà chơi (internet)|Let friends outside your home network join (internet)"></b>
+  <div class="tip" id="tunnelTip"></div></div></div>
+</div>
+<button class="btn" onclick="start()" data-t="▶ BẮT ĐẦU|▶ START"></button>
+<div class="tip" style="text-align:center;margin-top:10px" data-t="Lần đầu Windows có thể hỏi về tường lửa: bấm “Cho phép” (Allow) để bạn bè vào được.|The first time, Windows may ask about the firewall: click “Allow” so friends can join."></div>
+</div>
+
+<div id="run" class="hide">
+ <div class="card"><div class="ok" data-t="✅ Game đang chạy|✅ Game is running"></div>
+  <div class="tip" style="text-align:center" data-t="Bấm “Mở game”, tạo phòng, rồi gửi địa chỉ bên dưới cho bạn bè.|Press “Open game”, create a room, then send an address below to your friends."></div>
+  <button class="btn" onclick="post('/api/open')" data-t="🎮 Mở game|🎮 Open game"></button></div>
+ <div class="card"><div class="h" data-t="Địa chỉ để mời bạn|Addresses to share"></div><div id="urls"></div></div>
+ <div class="card"><details><summary class="tip" data-t="Nhật ký|Log"></summary><pre id="log"></pre></details></div>
+ <button class="btn ghost" onclick="stopGame()" data-t="⏹ Dừng và đổi cài đặt|⏹ Stop and change settings"></button>
+ <button class="btn red" onclick="quit()" data-t="Thoát hoàn toàn|Quit completely"></button>
+</div>
+
+<div id="err" class="card err hide"></div>
+<div id="bye" class="card hide" style="text-align:center" data-t="Đã tắt. Bạn có thể đóng cửa sổ này.|Stopped. You can close this window."></div>
+</div>
+<script>
+let L='vi',S=null,loaded=false;
+const $=id=>document.getElementById(id);
+const T=(a,b)=>L==='vi'?a:b;
+function apply(){document.documentElement.lang=L;document.querySelectorAll('[data-t]').forEach(e=>{const p=e.dataset.t.split('|');e.textContent=p[L==='vi'?0:1]||p[0]});tipRender()}
+function setLang(l){L=l;apply();if(S)render()}
+async function post(u,b){const r=await fetch(u,{method:'POST',body:JSON.stringify(b||{})});return r.json()}
+function form(){return{port:$('port').value,difficulty:$('difficulty').value,botSpeed:$('botSpeed').value,classicTurn:$('classicTurn').value,ultimaTurn:$('ultimaTurn').value,tunnel:$('tunnel').checked,lang:L}}
+function tipRender(){if(!S)return;$('tunnel').disabled=!S.cloudflared;
+ $('tunnelTip').innerHTML=S.cloudflared?T('Tự tạo địa chỉ công khai (Cloudflare Tunnel).','Creates a public address automatically (Cloudflare Tunnel).')
+ :T('Cần cài “cloudflared” một lần: mở PowerShell và gõ <b>winget install Cloudflare.cloudflared</b>, rồi chạy lại. Nếu bạn bè cùng Wi-Fi thì không cần.','Install “cloudflared” once: open PowerShell and run <b>winget install Cloudflare.cloudflared</b>, then start again. Not needed if friends are on the same Wi-Fi.')}
+function urlRow(label,u){return `<div class="tip">${label}</div><div class="url"><code>${u}</code><button onclick="navigator.clipboard.writeText('${u}');this.textContent='✓'">${T('Chép','Copy')}</button></div>`}
+function render(){
+ if(!loaded){const s=S.settings;L=s.lang||'vi';['port','difficulty','botSpeed','classicTurn','ultimaTurn'].forEach(k=>$(k).value=s[k]);$('tunnel').checked=!!s.tunnel&&S.cloudflared;loaded=true;apply()}
+ tipRender();
+ $('setup').classList.toggle('hide',S.running);$('run').classList.toggle('hide',!S.running);
+ if(S.running){let h=urlRow(T('Trên máy này','On this PC'),S.local);
+  S.lan.forEach(u=>h+=urlRow(T('Cùng Wi-Fi / mạng LAN','Same Wi-Fi / LAN'),u));
+  if(S.onlineUrl)h+=urlRow(T('Online (gửi cho bạn bè ở xa)','Online (send to far-away friends)'),S.onlineUrl);
+  else if(S.tunnelWanted)h+=`<div class="tip">${T('Đang tạo địa chỉ online… (vài giây)','Creating the online address… (a few seconds)')}</div>`;
+  $('urls').innerHTML=h;$('log').textContent=S.log.join('\n')}
+ const e=$('err');e.classList.toggle('hide',!S.error);
+ if(S.error)e.textContent=S.error==='port'?T('Cổng này đang được dùng. Hãy đổi cổng khác (ví dụ 3001) hoặc tắt game cũ.','This port is already in use. Pick another port (e.g. 3001) or close the old game.'):T('Game bị dừng bất ngờ. Xem nhật ký ở trên.','The game stopped unexpectedly. See the log.')}
+async function poll(){try{S=await (await fetch('/api/state')).json();render()}catch(e){}}
+async function start(){S=await post('/api/start',form());render();setTimeout(()=>post('/api/open'),1200)}
+async function stopGame(){S=await post('/api/stop');render()}
+async function quit(){await post('/api/quit');$('setup').classList.add('hide');$('run').classList.add('hide');$('bye').classList.remove('hide')}
+apply();poll();setInterval(poll,1500);
+</script></body></html>

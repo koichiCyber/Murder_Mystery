@@ -54,3 +54,7 @@ Classic mode timer: each turn lasts 45 seconds (env CLASSIC_TURN in ms); the clo
 
 
 **Latest changes / Cập nhật mới:** ready check before every game (everyone presses Ready, 40 s timeout, env RC_TIMEOUT); end-of-game recap (summary, all hands, question history, timeline); mobile layout pass; Ultima Hard balance: Accomplices know the SUSPECT from the start and learn the WEAPON from round 5 (env ULT_ACC_W_ROUND), the evidence pile has extra blank cards so it lasts about 6-7 rounds (env ULT_PILE_X, extra blanks per player, default 1.8). Seizing starts at round 4 (env ULT_SEIZE_ROUND); the second Accomplice joins from 9 players, the third at 12. Action cards now have painted art (game/public/art/a_*.jpg).
+
+
+## Launcher (start.bat / start.sh)
+Double-click `start.bat` (Windows) or run `./start.sh`: a settings page opens in the browser (difficulty, bot speed, turn times, port, optional internet link via Cloudflare Tunnel). Press START, then share the addresses it shows. The old direct scripts are `start-direct.bat` / `start-direct.sh`. For friends without Node.js, put a portable `node.exe` in a `node` folder next to `start.bat` (the friends pack zip does this).

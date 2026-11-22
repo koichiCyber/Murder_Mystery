@@ -3,3 +3,5 @@ cards/out/
 *.zip
 .DS_Store
 __pycache__/
+launcher-settings.json
+game/node/
