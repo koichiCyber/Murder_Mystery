@@ -35,6 +35,9 @@ const MAX_PLAYERS = 12;
 const capOf = room => (room.settings && room.settings.game === 'ultima') ? 12 : 6;
 const U = require('./ultima');
 const rooms = {};
+const ACC = require('./accounts');
+const ALLOW_GUESTS = process.env.ALLOW_GUESTS === '1';
+const ipOf = req => String((req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')).split(',')[0].trim();
 
 const ri = n => crypto.randomInt(n);
 const pick = a => a[ri(a.length)];
@@ -172,6 +175,7 @@ function finish(room, team, winners, vi, en) {
   g.over = { team, winners, vi, en };
   room.phase = 'over'; g.pending = null;
   pub(room, '🏁 ' + vi, '🏁 ' + en);
+  try { ACC.record(room); } catch (e) { console.error('[accounts]', e.message); }
 }
 function checkEnd(room) {
   const g = room.g, alive = aliveIds(room);
@@ -458,22 +462,26 @@ const server = http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   try {
     if (req.method === 'POST' && u.pathname === '/api/create') {
-      const b = await readBody(req), name = cleanName(b.name);
+      const b = await readBody(req), w = ACC.who(b.acct);
+      if (!w && !ALLOW_GUESTS) return json(res, 401, E('Hãy đăng nhập trước.', 'Please log in first.'));
+      const name = w ? w.user.name : cleanName(b.name);
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
       const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds, game: 'classic', ulevel: 'hard', theme: 'classic' }, g: null, log: [] };
       rooms[room.code] = room;
-      const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set() };
+      const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set(), acct: w ? w.key : null };
       room.players.push(p); room.hostId = p.id;
       return json(res, 200, { code: room.code, token: p.token, id: p.id });
     }
     if (req.method === 'POST' && u.pathname === '/api/join') {
-      const b = await readBody(req), name = cleanName(b.name), room = rooms[String(b.code || '').toUpperCase()];
+      const b = await readBody(req), w = ACC.who(b.acct), room = rooms[String(b.code || '').toUpperCase()];
+      if (!w && !ALLOW_GUESTS) return json(res, 401, E('Hãy đăng nhập trước.', 'Please log in first.'));
+      const name = w ? w.user.name : cleanName(b.name);
       if (!room) return json(res, 404, E('Không tìm thấy phòng.', 'Room not found.'));
       if (room.phase !== 'lobby') return json(res, 400, E('Ván đã bắt đầu.', 'The game already started.'));
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
       if (room.players.length >= capOf(room)) return json(res, 400, E(`Phòng đã đủ ${capOf(room)} người.`, `Room is full (${capOf(room)}).`));
       if (room.players.some(x => x.name.toLowerCase() === name.toLowerCase())) return json(res, 400, E('Tên này đã có người dùng.', 'That name is taken.'));
-      const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set() };
+      const p = { id: tok().slice(0, 8), name, token: tok(), conns: new Set(), acct: w ? w.key : null };
       room.players.push(p); broadcast(room);
       return json(res, 200, { code: room.code, token: p.token, id: p.id });
     }
@@ -485,6 +493,11 @@ const server = http.createServer(async (req, res) => {
       room.botFails = 0; scheduleBots(room);
       return json(res, r ? 400 : 200, r || { ok: true });
     }
+    if (req.method === 'POST' && u.pathname === '/api/register') { const b = await readBody(req); const r = ACC.register(b.name, b.password, ipOf(req)); return json(res, r.error ? 400 : 200, r); }
+    if (req.method === 'POST' && u.pathname === '/api/login') { const b = await readBody(req); const r = ACC.login(b.name, b.password, ipOf(req)); return json(res, r.error ? 400 : 200, r); }
+    if (req.method === 'POST' && u.pathname === '/api/logout') { const b = await readBody(req); return json(res, 200, ACC.logout(b.acct)); }
+    if (req.method === 'POST' && u.pathname === '/api/password') { const b = await readBody(req); const r = ACC.changePassword(b.acct, b.oldPassword, b.newPassword); return json(res, r.error ? 400 : 200, r); }
+    if (req.method === 'GET' && u.pathname === '/api/me') { const m = ACC.me(u.searchParams.get('acct')); return m ? json(res, 200, m) : json(res, 401, E('Hãy đăng nhập lại.', 'Please log in again.')); }
     if (req.method === 'GET' && u.pathname === '/api/music') {
       let list = [];
       try { list = fs.readdirSync(path.join(PUB, 'music')).filter(f => /\.(mp3|ogg|wav|m4a)$/i.test(f)).sort(); } catch (e) {}
@@ -519,6 +532,7 @@ setInterval(() => { for (const c in rooms) { const r = rooms[c]; if (r.players.e
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('\n  MurdleGamr is running!\n');
+  console.log('  Accounts & stats are saved on this PC in: ' + ACC.DIR + '\n');
   console.log(`  On this PC:        http://localhost:${PORT}`);
   for (const list of Object.values(os.networkInterfaces())) for (const n of list || []) if (n.family === 'IPv4' && !n.internal) console.log(`  Same Wi-Fi/LAN:    http://${n.address}:${PORT}`);
   console.log('  Friends elsewhere: see README (tunnel or port-forward)\n');

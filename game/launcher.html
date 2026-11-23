@@ -43,6 +43,7 @@ pre{background:#0c0705;border-radius:8px;padding:10px;font-size:12px;color:#bfae
   <div class="tip" style="text-align:center" data-t="Bấm “Mở game”, tạo phòng, rồi gửi địa chỉ bên dưới cho bạn bè.|Press “Open game”, create a room, then send an address below to your friends."></div>
   <button class="btn" onclick="post('/api/open')" data-t="🎮 Mở game|🎮 Open game"></button></div>
  <div class="card"><div class="h" data-t="Địa chỉ để mời bạn|Addresses to share"></div><div id="urls"></div></div>
+ <div class="card"><div class="tip" data-t="💾 Tài khoản và thống kê của mọi người được lưu trên máy này, trong thư mục:|💾 Everyone’s accounts and stats are saved on this PC, in the folder:"></div><div class="url"><code id="dd"></code></div><div class="tip" data-t="Sao chép thư mục này để sao lưu.|Copy this folder to back it up."></div></div>
  <div class="card"><details><summary class="tip" data-t="Nhật ký|Log"></summary><pre id="log"></pre></details></div>
  <button class="btn ghost" onclick="stopGame()" data-t="⏹ Dừng và đổi cài đặt|⏹ Stop and change settings"></button>
  <button class="btn red" onclick="quit()" data-t="Thoát hoàn toàn|Quit completely"></button>
@@ -71,7 +72,7 @@ function render(){
   S.lan.forEach(u=>h+=urlRow(T('Cùng Wi-Fi / mạng LAN','Same Wi-Fi / LAN'),u));
   if(S.onlineUrl)h+=urlRow(T('Online (gửi cho bạn bè ở xa)','Online (send to far-away friends)'),S.onlineUrl);
   else if(S.tunnelWanted)h+=`<div class="tip">${T('Đang tạo địa chỉ online… (vài giây)','Creating the online address… (a few seconds)')}</div>`;
-  $('urls').innerHTML=h;$('log').textContent=S.log.join('\n')}
+  $('urls').innerHTML=h;$('dd').textContent=S.dataDir;$('log').textContent=S.log.join('\n')}
  const e=$('err');e.classList.toggle('hide',!S.error);
  if(S.error)e.textContent=S.error==='port'?T('Cổng này đang được dùng. Hãy đổi cổng khác (ví dụ 3001) hoặc tắt game cũ.','This port is already in use. Pick another port (e.g. 3001) or close the old game.'):T('Game bị dừng bất ngờ. Xem nhật ký ở trên.','The game stopped unexpectedly. See the log.')}
 async function poll(){try{S=await (await fetch('/api/state')).json();render()}catch(e){}}

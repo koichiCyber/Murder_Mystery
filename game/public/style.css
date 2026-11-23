@@ -17,7 +17,7 @@ button{font:inherit;cursor:pointer}
 .btn.red{background:var(--red);color:#fff}
 .btn:disabled{opacity:.4;cursor:not-allowed}
 .btn .en{opacity:.7}
-input[type=text],input[type=number],select{background:#12101c;color:var(--text);border:1px solid #4a4272;border-radius:10px;padding:10px 12px;font:inherit;width:100%}
+input[type=text],input[type=password],input[type=number],select{background:#12101c;color:var(--text);border:1px solid #4a4272;border-radius:10px;padding:10px 12px;font:inherit;width:100%}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .home{max-width:460px;margin:6vh auto}
 .home .panel{padding:20px}
@@ -460,3 +460,7 @@ input[type=text],input[type=number],select{background:#12101c;color:var(--text);
 .act .ai{width:100%;height:auto;margin:0;font-size:0;line-height:0}
 .act .ai img{width:100%;aspect-ratio:520/310;object-fit:cover;border-radius:7px;display:block;border:1px solid #0003}
 .act[data-aid^=blank] .ad{font-size:15px;margin-top:4px}
+/* account */
+.home .tip a,.box .tip a{color:#f0c46a;text-decoration:underline}
+.home .tip{color:#cfc6e8;font-size:14px}
+.box table th{font-weight:normal;color:#a99fd0;font-size:12px}.box table td{padding:3px 6px 3px 0}

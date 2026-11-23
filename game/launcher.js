@@ -73,7 +73,7 @@ function openBrowser(url) {
 }
 function state() {
   return { running: !!game, error, settings, cloudflared: !!cloudflared, tunnelWanted: !!tunnel, onlineUrl,
-    local: `http://localhost:${settings.port}`, lan: lanIps().map((ip) => `http://${ip}:${settings.port}`), log: log.slice(-12), node: process.version };
+    local: `http://localhost:${settings.port}`, dataDir: process.env.DATA_DIR || path.join(DIR, 'data'), lan: lanIps().map((ip) => `http://${ip}:${settings.port}`), log: log.slice(-12), node: process.version };
 }
 
 const PAGE = fs.readFileSync(path.join(DIR, 'launcher.html'), 'utf8');

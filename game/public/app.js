@@ -115,13 +115,51 @@ function connect() {
   S.poll = setInterval(pollOnce, tunnel ? 1500 : 5000);
 }
 async function createRoom() {
-  const name = $('#name').value; const r = await fetch('/api/create', { method: 'POST', body: JSON.stringify({ name }) }); const j = await r.json();
-  if (j.error) return toast(j.error.vi, j.error.en); saveSession(j); connect();
+  const r = await fetch('/api/create', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct }) }); const j = await r.json();
+  if (j.error) { if (r.status === 401) authLost(); return toast(j.error.vi, j.error.en); } saveSession(j); connect();
 }
 async function joinRoom() {
-  const name = $('#name').value, code = $('#code').value.trim().toUpperCase();
-  const r = await fetch('/api/join', { method: 'POST', body: JSON.stringify({ name, code }) }); const j = await r.json();
-  if (j.error) return toast(j.error.vi, j.error.en); saveSession(j); connect();
+  const code = $('#code').value.trim().toUpperCase();
+  const r = await fetch('/api/join', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct, code }) }); const j = await r.json();
+  if (j.error) { if (r.status === 401) authLost(); return toast(j.error.vi, j.error.en); } saveSession(j); connect();
+}
+
+// ---------- account (stored on the host PC) ----------
+try { S.acct = JSON.parse(localStorage.mm_acct || 'null'); } catch (e) { S.acct = null; }
+S.authTab = 'login'; S.me = null;
+function authLost() { S.acct = null; S.me = null; localStorage.removeItem('mm_acct'); render(); }
+async function loadMe() {
+  if (!S.acct) return render();
+  try { const r = await fetch('/api/me?acct=' + encodeURIComponent(S.acct.acct)); if (r.status === 401) return authLost(); if (r.ok) { S.me = await r.json(); S.acct.name = S.me.name; } } catch (e) {}
+  render();
+}
+function setAuthTab(t) { S.authTab = t; render(); }
+async function doAuth() {
+  const name = $('#an').value, password = $('#ap').value;
+  const r = await fetch('/api/' + (S.authTab === 'reg' ? 'register' : 'login'), { method: 'POST', body: JSON.stringify({ name, password }) }); const j = await r.json();
+  if (j.error) return toast(j.error.vi, j.error.en);
+  S.acct = { acct: j.acct, name: j.name }; localStorage.mm_acct = JSON.stringify(S.acct); loadMe();
+}
+async function logoutAcct() { try { await fetch('/api/logout', { method: 'POST', body: JSON.stringify({ acct: S.acct.acct }) }); } catch (e) {} closeModal(); authLost(); }
+async function changePw() {
+  const r = await fetch('/api/password', { method: 'POST', body: JSON.stringify({ acct: S.acct.acct, oldPassword: $('#opw').value, newPassword: $('#npw').value }) }); const j = await r.json();
+  if (j.error) return toast(j.error.vi, j.error.en); $('#opw').value = ''; $('#npw').value = ''; toast('Đã đổi mật khẩu.', 'Password changed.');
+}
+const pct = (w, p) => p ? Math.round(100 * w / p) + '%' : '–';
+function showProfile() {
+  const m = S.me; if (!m) return;
+  const st = m.stats, en = S.lang === 'en';
+  const modes = Object.entries(st.byMode).map(([k, x]) => `<tr><td>${k === 'ultima' ? 'Ultima' : T('Cổ điển', 'Classic')}</td><td>${x.played}</td><td>${x.won}</td><td>${pct(x.won, x.played)}</td></tr>`).join('');
+  const roles = Object.entries(st.byRole).map(([k, x]) => `<tr><td>${ROLES[k] ? esc(LN(ROLES[k])) : '–'}</td><td>${x.played}</td><td>${x.won}</td><td>${pct(x.won, x.played)}</td></tr>`).join('');
+  const games = m.games.map(g => { const me = g.players.find(p => p.name.toLowerCase() === m.name.toLowerCase()) || {}; return `<div style="margin:4px 0">${me.won ? '🏆' : '✖'} ${new Date(g.t).toLocaleDateString(en ? 'en-US' : 'vi-VN')} · ${g.mode === 'ultima' ? 'Ultima' : T('Cổ điển', 'Classic')} · ${ROLES[me.role] ? esc(LN(ROLES[me.role])) : ''}</div>`; }).join('') || `<div class="tip">${T('Chưa có ván nào.', 'No games yet.')}</div>`;
+  const tb = (rows) => rows ? `<table style="width:100%;text-align:left;margin:6px 0"><tr><th></th><th>${T('Ván', 'Played')}</th><th>${T('Thắng', 'Won')}</th><th>%</th></tr>${rows}</table>` : '';
+  $('#modal').innerHTML = `<div class="back" onclick="if(event.target===this)closeModal()"><div class="box"><h3>👤 ${esc(m.name)}</h3>
+  <p><b>${st.played}</b> ${T('ván', 'games')} · <b>${st.won}</b> ${T('thắng', 'won')} · <b>${pct(st.won, st.played)}</b></p>${tb(modes)}${tb(roles)}
+  <h3 style="font-size:16px;margin-top:12px">${T('Ván gần đây', 'Recent games')}</h3>${games}
+  <h3 style="font-size:16px;margin-top:12px">${T('Đổi mật khẩu', 'Change password')}</h3>
+  <input type="password" id="opw" placeholder="${T('Mật khẩu cũ', 'Old password')}"><div style="height:6px"></div><input type="password" id="npw" placeholder="${T('Mật khẩu mới', 'New password')}">
+  <div class="row" style="margin-top:8px"><button class="btn sec" onclick="changePw()">${T('Đổi', 'Change')}</button><button class="btn sec" onclick="logoutAcct()">${T('Đăng xuất', 'Log out')}</button><button class="btn" onclick="closeModal()">${T('Đóng', 'Close')}</button></div>
+  <p class="tip" style="font-size:12px">${T('Dữ liệu được lưu trên máy tính của chủ game, không đưa lên internet.', 'Data is saved on the game host’s computer, not uploaded anywhere.')}</p></div></div>`;
 }
 
 // ---------- state hooks ----------
@@ -456,11 +494,21 @@ function topBar() {
   const v = S.v;
   return `<div class="top"><h1>MurdleGamr</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="leaveAsk()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
 }
+function loginView() {
+  const reg = S.authTab === 'reg', tab = (k, t) => `<button class="pill ${S.authTab === k ? 'on' : ''}" onclick="setAuthTab('${k}')">${t}</button>`;
+  return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Đăng nhập', 'Log in')}</h3>
+  <div style="margin:6px 0 12px"><span class="seg">${tab('login', T('Đăng nhập', 'Log in'))}${tab('reg', T('Tạo tài khoản', 'Sign up'))}</span></div>
+  <div class="lab">${T('TÊN CỦA BẠN', 'YOUR NAME')}</div><input type="text" id="an" maxlength="16" autocomplete="username" placeholder="Khải, Uyên...">
+  <div class="lab" style="margin-top:10px">${T('MẬT KHẨU', 'PASSWORD')}</div><input type="password" id="ap" autocomplete="${reg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')doAuth()">
+  <div style="height:14px"></div><button class="btn" style="width:100%" onclick="doAuth()">${reg ? T('Tạo tài khoản', 'Create account') : T('Đăng nhập', 'Log in')}</button>
+  <p class="tip" style="font-size:12px;margin-top:12px">${T('Tài khoản và thống kê được lưu trên máy tính của chủ game (không đưa lên internet). Mật khẩu từ 4 ký tự.', 'Accounts and stats are saved on the game host’s computer (not uploaded anywhere). Password: 4+ characters.')}</p></div></div></div>`;
+}
 function homeView() {
-  const room = new URLSearchParams(location.search).get('room') || '';
-  return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Vào chơi', 'Join the game')}</h3>
-  <div class="lab">${T('TÊN CỦA BẠN', 'YOUR NAME')}</div><input type="text" id="name" maxlength="16" placeholder="Khải, Uyên...">
-  <div style="height:14px"></div><button class="btn" style="width:100%" onclick="createRoom()">${T('Tạo phòng mới', 'Create a new room')}</button>
+  if (!S.acct) return loginView();
+  const room = new URLSearchParams(location.search).get('room') || '', st = S.me && S.me.stats;
+  return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Xin chào', 'Hello')}, ${esc(S.acct.name)}</h3>
+  <div class="tip" style="margin-bottom:10px">${st ? `${st.played} ${T('ván', 'games')} · ${st.won} ${T('thắng', 'won')} · ${pct(st.won, st.played)}` : ''} <a href="#" onclick="showProfile();return false">${T('Hồ sơ', 'Profile')}</a> · <a href="#" onclick="logoutAcct();return false">${T('Đăng xuất', 'Log out')}</a></div>
+  <button class="btn" style="width:100%" onclick="createRoom()">${T('Tạo phòng mới', 'Create a new room')}</button>
   <div class="lab" style="margin-top:18px">${T('HOẶC NHẬP MÃ PHÒNG', 'OR ENTER A ROOM CODE')}</div>
   <div class="row"><input type="text" id="code" maxlength="4" value="${esc(room)}" placeholder="ABCD" style="flex:1;text-transform:uppercase"><button class="btn sec" onclick="joinRoom()">${T('Vào phòng', 'Join')}</button></div></div></div></div>`;
 }
@@ -649,3 +697,5 @@ fetch('/cards.json').then(r => r.json()).then(c => {
   CARDS = c; for (const k of ['s', 'w', 'l']) c[k].forEach(x => { BY[x.id] = x; BASEC[x.id] = JSON.parse(JSON.stringify(x)); }); c.roles.forEach(r => (ROLES[r.id] = r));
   if (S.session) connect(); else render();
 });
+
+loadMe();

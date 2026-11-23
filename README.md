@@ -58,3 +58,6 @@ Classic mode timer: each turn lasts 45 seconds (env CLASSIC_TURN in ms); the clo
 
 ## Launcher (start.bat / start.sh)
 Double-click `start.bat` (Windows) or run `./start.sh`: a settings page opens in the browser (difficulty, bot speed, turn times, port, optional internet link via Cloudflare Tunnel). Press START, then share the addresses it shows. The old direct scripts are `start-direct.bat` / `start-direct.sh`. For friends without Node.js, put a portable `node.exe` in a `node` folder next to `start.bat` (the friends pack zip does this).
+
+## Accounts (stored on the host PC)
+Players must log in (name + password, 4+ chars). Accounts, password hashes (scrypt), win/loss stats and recent games are saved in `game/data/accounts.json` on the PC that runs the server; phones just connect to that host. Back up by copying the `data` folder. Set `DATA_DIR` to change the location. For old test scripts that join with a plain name, run the server with `ALLOW_GUESTS=1`.

@@ -5,3 +5,4 @@ cards/out/
 __pycache__/
 launcher-settings.json
 game/node/
+game/data/
