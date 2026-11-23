@@ -1,4 +1,4 @@
-// Manor Murder Mystery - Vietnamese edition. Zero-dependency Node server.
+// MurdleGamr (Án Mạng Dinh Thự) - Vietnamese edition. Zero-dependency Node server.
 // Run:  node server.js   (then open http://localhost:3000)
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os'), crypto = require('crypto');
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -518,7 +518,7 @@ const server = http.createServer(async (req, res) => {
 setInterval(() => { for (const c in rooms) { const r = rooms[c]; if (r.players.every(p => !p.conns.size)) { r.idle = (r.idle || 0) + 1; if (r.idle > 120) delete rooms[c]; } else r.idle = 0; } }, 60000);
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log('\n  Án Mạng Dinh Thự / Manor Murder Mystery is running!\n');
+  console.log('\n  MurdleGamr is running!\n');
   console.log(`  On this PC:        http://localhost:${PORT}`);
   for (const list of Object.values(os.networkInterfaces())) for (const n of list || []) if (n.family === 'IPv4' && !n.internal) console.log(`  Same Wi-Fi/LAN:    http://${n.address}:${PORT}`);
   console.log('  Friends elsewhere: see README (tunnel or port-forward)\n');

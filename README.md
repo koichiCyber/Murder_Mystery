@@ -1,4 +1,4 @@
-# Murder_Mystery – Án Mạng Dinh Thự
+# MurdleGamr – Án Mạng Dinh Thự (Murder_Mystery)
 
 A Vietnamese-themed Murdle/Cluedo-style deduction card game for up to 6 friends, with role cards and a web version you host from your own PC.
 Trò chơi suy luận án mạng phong cách Việt (kiểu Murdle/Cluedo) cho tối đa 6 người, có thẻ vai trò và bản web tự chạy trên máy của bạn.

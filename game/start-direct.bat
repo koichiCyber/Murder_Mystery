@@ -1,5 +1,5 @@
 @echo off
-title An Mang Dinh Thu - Manor Murder Mystery
+title MurdleGamr
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js is not installed. Download the LTS version from https://nodejs.org then run this again.
@@ -55,7 +55,7 @@ if "%USE_TUNNEL%"=="1" (
     pause
     exit /b
   )
-  start "Manor Mystery server" cmd /k node server.js
+  start "MurdleGamr server" cmd /k node server.js
   timeout /t 2 /nobreak >nul
   echo.
   echo [Tunnel] Look for the address ending in .trycloudflare.com below.

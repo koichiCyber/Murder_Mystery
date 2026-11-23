@@ -1,6 +1,6 @@
 @echo off
 cd /d "%~dp0"
-title An Mang Dinh Thu - Launcher (keep this window open)
+title MurdleGamr - Launcher (keep this window open)
 set "NODE=node"
 if exist "%~dp0node\node.exe" set "NODE=%~dp0node\node.exe"
 "%NODE%" --version >nul 2>nul

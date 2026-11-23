@@ -454,7 +454,7 @@ function topBar() {
   const MU = `<button class="pill" onclick="toggleMusic()" title="${T('Nhạc nền', 'Music')}">${M.on && !M.muted ? '🎵' : '🔇'}</button>`;
   const L = (k, t) => `<button class="pill ${S.lang === k ? 'on' : ''}" onclick="setLang('${k}')">${t}</button>`;
   const v = S.v;
-  return `<div class="top"><h1>${S.lang === 'en' ? 'Manor Murder Mystery' : 'Án Mạng Dinh Thự'}</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="leaveAsk()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
+  return `<div class="top"><h1>MurdleGamr</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="leaveAsk()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
 }
 function homeView() {
   const room = new URLSearchParams(location.search).get('room') || '';

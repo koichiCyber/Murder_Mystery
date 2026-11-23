@@ -1,4 +1,4 @@
-AN MANG DINH THU / MANOR MYSTERY - web version (up to 6 players)
+MURDLEGAMR (An Mang Dinh Thu / Manor Mystery) - web version (up to 6 players)
 ================================================================
 
 TIENG VIET

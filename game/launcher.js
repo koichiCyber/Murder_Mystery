@@ -1,4 +1,4 @@
-// Launcher UI for Manor Murder Mystery: pick settings in the browser, press Start.
+// Launcher UI for MurdleGamr: pick settings in the browser, press Start.
 // Zero dependencies. Run:  node launcher.js   (start.bat / start.sh do this for you)
 'use strict';
 const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
@@ -98,7 +98,7 @@ function listen(port, tries) {
   server.once('error', (e) => { if (e.code === 'EADDRINUSE' && tries > 0) listen(port + 1, tries - 1); else { console.error(e.message); process.exit(1); } });
   server.listen(port, '127.0.0.1', () => {
     const url = `http://localhost:${port}`;
-    console.log('\n  Manor Murder Mystery - Launcher');
+    console.log('\n  MurdleGamr - Launcher');
     console.log(`  Settings window: ${url}  (opening in your browser)`);
     console.log('  Keep this window open while you play. Close it (or press Quit in the page) to stop everything.\n');
     if (!process.env.NO_OPEN) openBrowser(url);
