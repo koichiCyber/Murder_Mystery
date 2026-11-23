@@ -115,18 +115,18 @@ function connect() {
   S.poll = setInterval(pollOnce, tunnel ? 1500 : 5000);
 }
 async function createRoom() {
-  const r = await fetch('/api/create', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct }) }); const j = await r.json();
+  const r = await fetch('/api/create', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct, name: S.guest }) }); const j = await r.json();
   if (j.error) { if (r.status === 401) authLost(); return toast(j.error.vi, j.error.en); } saveSession(j); connect();
 }
 async function joinRoom() {
   const code = $('#code').value.trim().toUpperCase();
-  const r = await fetch('/api/join', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct, code }) }); const j = await r.json();
+  const r = await fetch('/api/join', { method: 'POST', body: JSON.stringify({ acct: S.acct && S.acct.acct, name: S.guest, code }) }); const j = await r.json();
   if (j.error) { if (r.status === 401) authLost(); return toast(j.error.vi, j.error.en); } saveSession(j); connect();
 }
 
 // ---------- account (stored on the host PC) ----------
 try { S.acct = JSON.parse(localStorage.mm_acct || 'null'); } catch (e) { S.acct = null; }
-S.authTab = 'login'; S.me = null;
+S.authTab = 'login'; S.me = null; S.guest = localStorage.mm_guest || '';
 function authLost() { S.acct = null; S.me = null; localStorage.removeItem('mm_acct'); render(); }
 async function loadMe() {
   if (!S.acct) return render();
@@ -134,7 +134,14 @@ async function loadMe() {
   render();
 }
 function setAuthTab(t) { S.authTab = t; render(); }
+function doGuest() {
+  const name = $('#an').value.replace(/[<>&"'\\/]/g, '').trim().slice(0, 16);
+  if (name.length < 2) return toast('Tên cần ít nhất 2 ký tự.', 'Name needs at least 2 characters.');
+  S.guest = name; localStorage.mm_guest = name; render();
+}
+function leaveGuest() { S.guest = ''; localStorage.removeItem('mm_guest'); render(); }
 async function doAuth() {
+  if (S.authTab === 'guest') return doGuest();
   const name = $('#an').value, password = $('#ap').value;
   const r = await fetch('/api/' + (S.authTab === 'reg' ? 'register' : 'login'), { method: 'POST', body: JSON.stringify({ name, password }) }); const j = await r.json();
   if (j.error) return toast(j.error.vi, j.error.en);
@@ -495,16 +502,24 @@ function topBar() {
   return `<div class="top"><h1>MurdleGamr</h1><div class="r">${v ? `<span class="pill room">${T('Phòng', 'Room')} <b>${esc(v.code)}</b></span>` : ''}${M.tracks.length ? MU : ''}<span class="seg">${L('vi', 'VI')}${L('en', 'EN')}</span>${v ? `<button class="pill rules" onclick="showRules()">${T('Luật', 'Rules')}</button><button class="pill leave" onclick="leaveAsk()">${T('Rời', 'Leave')}</button>` : ''}</div></div>`;
 }
 function loginView() {
-  const reg = S.authTab === 'reg', tab = (k, t) => `<button class="pill ${S.authTab === k ? 'on' : ''}" onclick="setAuthTab('${k}')">${t}</button>`;
+  const reg = S.authTab === 'reg', guest = S.authTab === 'guest', tab = (k, t) => `<button class="pill ${S.authTab === k ? 'on' : ''}" onclick="setAuthTab('${k}')">${t}</button>`;
   return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Đăng nhập', 'Log in')}</h3>
-  <div style="margin:6px 0 12px"><span class="seg">${tab('login', T('Đăng nhập', 'Log in'))}${tab('reg', T('Tạo tài khoản', 'Sign up'))}</span></div>
+  <div style="margin:6px 0 12px"><span class="seg">${tab('login', T('Đăng nhập', 'Log in'))}${tab('reg', T('Tạo tài khoản', 'Sign up'))}${tab('guest', T('Khách', 'Guest'))}</span></div>
   <div class="lab">${T('TÊN CỦA BẠN', 'YOUR NAME')}</div><input type="text" id="an" maxlength="16" autocomplete="username" placeholder="Khải, Uyên...">
-  <div class="lab" style="margin-top:10px">${T('MẬT KHẨU', 'PASSWORD')}</div><input type="password" id="ap" autocomplete="${reg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')doAuth()">
-  <div style="height:14px"></div><button class="btn" style="width:100%" onclick="doAuth()">${reg ? T('Tạo tài khoản', 'Create account') : T('Đăng nhập', 'Log in')}</button>
-  <p class="tip" style="font-size:12px;margin-top:12px">${T('Tài khoản và thống kê được lưu trên máy tính của chủ game (không đưa lên internet). Mật khẩu từ 4 ký tự.', 'Accounts and stats are saved on the game host’s computer (not uploaded anywhere). Password: 4+ characters.')}</p></div></div></div>`;
+  ${guest ? '' : `<div class="lab" style="margin-top:10px">${T('MẬT KHẨU', 'PASSWORD')}</div><input type="password" id="ap" autocomplete="${reg ? 'new-password' : 'current-password'}" onkeydown="if(event.key==='Enter')doAuth()">`}
+  <div style="height:14px"></div><button class="btn" style="width:100%" onclick="doAuth()">${guest ? T('Chơi với tư cách khách', 'Play as guest') : reg ? T('Tạo tài khoản', 'Create account') : T('Đăng nhập', 'Log in')}</button>
+  <p class="tip" style="font-size:12px;margin-top:12px">${guest ? T('Chơi nhanh chỉ cần tên, không mật khẩu. Khách không có thống kê được lưu.', 'Quick play with just a name, no password. Guests don’t get saved stats.') : T('Tài khoản và thống kê được lưu trên máy tính của chủ game (không đưa lên internet). Mật khẩu từ 4 ký tự.', 'Accounts and stats are saved on the game host’s computer (not uploaded anywhere). Password: 4+ characters.')}</p></div></div></div>`;
 }
 function homeView() {
-  if (!S.acct) return loginView();
+  if (!S.acct && !S.guest) return loginView();
+  if (!S.acct) {
+    const room = new URLSearchParams(location.search).get('room') || '';
+    return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Xin chào', 'Hello')}, ${esc(S.guest)} <small style="font-size:14px;color:#a99fd0">(${T('khách', 'guest')})</small></h3>
+  <div class="tip" style="margin-bottom:10px"><a href="#" onclick="leaveGuest();return false">${T('Đổi tên / Đăng nhập', 'Change name / Log in')}</a></div>
+  <button class="btn" style="width:100%" onclick="createRoom()">${T('Tạo phòng mới', 'Create a new room')}</button>
+  <div class="lab" style="margin-top:18px">${T('HOẶC NHẬP MÃ PHÒNG', 'OR ENTER A ROOM CODE')}</div>
+  <div class="row"><input type="text" id="code" maxlength="4" value="${esc(room)}" placeholder="ABCD" style="flex:1;text-transform:uppercase"><button class="btn sec" onclick="joinRoom()">${T('Vào phòng', 'Join')}</button></div></div></div></div>`;
+  }
   const room = new URLSearchParams(location.search).get('room') || '', st = S.me && S.me.stats;
   return `<div class="wrap">${topBar()}<div class="home"><div class="panel"><h3 style="font-size:22px">${T('Xin chào', 'Hello')}, ${esc(S.acct.name)}</h3>
   <div class="tip" style="margin-bottom:10px">${st ? `${st.played} ${T('ván', 'games')} · ${st.won} ${T('thắng', 'won')} · ${pct(st.won, st.played)}` : ''} <a href="#" onclick="showProfile();return false">${T('Hồ sơ', 'Profile')}</a> · <a href="#" onclick="logoutAcct();return false">${T('Đăng xuất', 'Log out')}</a></div>

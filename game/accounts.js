@@ -98,4 +98,5 @@ function record(room) {
   db.history.push(entry); if (db.history.length > HISTORY_MAX) db.history.splice(0, db.history.length - HISTORY_MAX);
   save();
 }
-module.exports = { register, login, logout, changePassword, me, who, record, DIR, FILE };
+const nameTaken = n => !!db.users[keyOf(cleanName(n))];
+module.exports = { nameTaken, register, login, logout, changePassword, me, who, record, DIR, FILE };

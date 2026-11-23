@@ -36,7 +36,7 @@ const capOf = room => (room.settings && room.settings.game === 'ultima') ? 12 : 
 const U = require('./ultima');
 const rooms = {};
 const ACC = require('./accounts');
-const ALLOW_GUESTS = process.env.ALLOW_GUESTS === '1';
+const ALLOW_GUESTS = process.env.ALLOW_GUESTS !== '0'; // guests (name only, no saved stats) allowed unless ALLOW_GUESTS=0
 const ipOf = req => String((req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')).split(',')[0].trim();
 
 const ri = n => crypto.randomInt(n);
@@ -465,6 +465,7 @@ const server = http.createServer(async (req, res) => {
       const b = await readBody(req), w = ACC.who(b.acct);
       if (!w && !ALLOW_GUESTS) return json(res, 401, E('Hãy đăng nhập trước.', 'Please log in first.'));
       const name = w ? w.user.name : cleanName(b.name);
+      if (!w && ACC.nameTaken(name)) return json(res, 400, E('Tên này thuộc về một tài khoản. Hãy đăng nhập, hoặc chọn tên khác.', 'That name belongs to an account. Log in, or pick another name.'));
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
       const room = { code: code4(), phase: 'lobby', players: [], hostId: null, settings: { roles: true, mode: 'team', maxRounds: CFG.rounds, game: 'classic', ulevel: 'hard', theme: 'classic' }, g: null, log: [] };
       rooms[room.code] = room;
@@ -476,6 +477,7 @@ const server = http.createServer(async (req, res) => {
       const b = await readBody(req), w = ACC.who(b.acct), room = rooms[String(b.code || '').toUpperCase()];
       if (!w && !ALLOW_GUESTS) return json(res, 401, E('Hãy đăng nhập trước.', 'Please log in first.'));
       const name = w ? w.user.name : cleanName(b.name);
+      if (!w && ACC.nameTaken(name)) return json(res, 400, E('Tên này thuộc về một tài khoản. Hãy đăng nhập, hoặc chọn tên khác.', 'That name belongs to an account. Log in, or pick another name.'));
       if (!room) return json(res, 404, E('Không tìm thấy phòng.', 'Room not found.'));
       if (room.phase !== 'lobby') return json(res, 400, E('Ván đã bắt đầu.', 'The game already started.'));
       if (!name) return json(res, 400, E('Hãy nhập tên.', 'Enter a name.'));
